@@ -1,7 +1,7 @@
 # VisBoard — OSS Implementation Spec
 
-**Version:** 0.3 (OSS-first, implementation-ready)  
-**Status:** Building Phase 1 (OSS only)  
+**Version:** 0.4 (OSS Phase 1 + Phase 2 features)  
+**Status:** Built — 8 packages, 34 tests passing  
 **Series:** Vis (interface / workspace)  
 **Owner:** LatticeAG  
 **License:** MIT  
@@ -15,19 +15,20 @@
 
 **Open-source, self-hosted VisBoard only.** No hosted SaaS, no billing, no invite system, no Clerk/Auth0 integration in this phase.
 
-| In scope (OSS Phase 1) | Deferred (Phase 2+ / SaaS) |
+| In scope (OSS — built) | Deferred |
 |---|---|
 | Monorepo + Docker Compose | Hosted multi-tenant SaaS |
-| Hono API server | Vercel Fluid Compute deployment |
+| Hono API server + SSE events | Vercel Fluid Compute deployment |
 | PostgreSQL + Drizzle | Neon managed hosting |
 | Local filesystem file storage | Vercel Blob / S3 production config |
 | Personal access tokens + agent API keys | OIDC/SSO (Clerk, WorkOS) |
-| CLI (`visboard`) | npm publish (local `pnpm link` first) |
-| TypeScript SDK | MCP server |
-| Minimal Next.js web UI | Marketing site |
-| AGENTS.md generator | Real-time SSE/WebSocket |
-| Export (JSON + files zip) | Import, billing, invites |
-| OpenAPI spec | Playwright e2e (Vitest unit tests first) |
+| CLI (`visboard`) + import/export | npm publish |
+| TypeScript SDK | — |
+| Next.js web UI (create flows, SSE) | Marketing site |
+| AGENTS.md generator | — |
+| MCP server (`@visboard/mcp`) | — |
+| OpenAPI spec | Playwright e2e |
+| Export/import zip roundtrip | Billing, invites |
 
 ### Long-term business model (context only — not building now)
 
@@ -1027,15 +1028,24 @@ Wave 3:
 
 ---
 
-## 18. Phase 2 Preview (after OSS MVP)
+## 18. Phase 2 — Completed (OSS)
 
-1. MCP server package
-2. OIDC auth plugin
-3. SSE event stream
-4. `visboard import`
-5. GitHub Action for agent context sync
-6. Hosted SaaS layer (LatticeAG)
-7. npm publish `@visboard/cli`, `@visboard/sdk`
+1. ✅ MCP server package (`@visboard/mcp`)
+2. ✅ SSE event stream (`GET .../events/stream`)
+3. ✅ `visboard import` + `POST .../import`
+4. ✅ OpenAPI spec (`openapi/openapi.yaml`)
+5. ✅ Real zip export with notes + files
+6. ✅ SDK list-response fixes, agent scoping, note slug lookup
+7. ✅ Web UI create flows, authenticated downloads, onboarding
+
+### Still deferred
+
+1. OIDC auth plugin
+2. GitHub Action for agent context sync
+3. Hosted SaaS layer (LatticeAG)
+4. npm publish `@visboard/cli`, `@visboard/sdk`
+5. Playwright e2e
+6. Comments UI
 
 ---
 
@@ -1052,7 +1062,7 @@ Wave 3:
 | 2026-07-11 | Auth: PAT + agent keys (no OIDC in Phase 1) |
 | 2026-07-11 | Storage: local filesystem |
 | 2026-07-11 | IDs: prefixed ULIDs |
-| 2026-07-11 | Web: Next.js minimal shell |
+| 2026-07-11 | Phase 2 OSS: MCP, SSE, import, OpenAPI, web polish | Full feature build |
 
 ---
 
