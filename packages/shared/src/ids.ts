@@ -1,0 +1,59 @@
+import { ulid } from "ulid";
+
+export const PREFIX = {
+  workspace: "ws",
+  project: "prj",
+  note: "nt",
+  noteVersion: "ntv",
+  checklist: "chk",
+  item: "item",
+  file: "file",
+  agent: "agent",
+  event: "evt",
+  user: "user",
+  pat: "pat",
+} as const;
+
+export type PrefixKey = keyof typeof PREFIX;
+
+export function createId(prefix: string): string {
+  return `${prefix}_${ulid()}`;
+}
+
+export function createPrefixedId(key: PrefixKey): string {
+  return createId(PREFIX[key]);
+}
+
+const ULID_PATTERN = "[0-9A-HJKMNP-TV-Z]{26}";
+
+export const ID_PATTERNS = {
+  workspace: new RegExp(`^ws_${ULID_PATTERN}$`),
+  project: new RegExp(`^prj_${ULID_PATTERN}$`),
+  note: new RegExp(`^nt_${ULID_PATTERN}$`),
+  noteVersion: new RegExp(`^ntv_${ULID_PATTERN}$`),
+  checklist: new RegExp(`^chk_${ULID_PATTERN}$`),
+  item: new RegExp(`^item_${ULID_PATTERN}$`),
+  file: new RegExp(`^file_${ULID_PATTERN}$`),
+  agent: new RegExp(`^agent_${ULID_PATTERN}$`),
+  event: new RegExp(`^evt_${ULID_PATTERN}$`),
+  user: new RegExp(`^user_${ULID_PATTERN}$`),
+  pat: new RegExp(`^pat_${ULID_PATTERN}$`),
+} as const;
+
+export function isValidId(value: string, kind: keyof typeof ID_PATTERNS): boolean {
+  return ID_PATTERNS[kind].test(value);
+}
+
+export function parseIdPrefix(value: string): string | null {
+  const idx = value.indexOf("_");
+  if (idx === -1) return null;
+  return value.slice(0, idx);
+}
+
+export function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}

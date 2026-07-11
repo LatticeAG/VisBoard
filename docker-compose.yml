@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: visboard
+      POSTGRES_PASSWORD: visboard
+      POSTGRES_DB: visboard
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U visboard"]
+      interval: 5s
+      retries: 5
+
+  api:
+    build: ./apps/api
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://visboard:visboard@postgres:5432/visboard
+      VISBOARD_DATA_DIR: /data
+      VISBOARD_TOKEN_PEPPER: ${VISBOARD_TOKEN_PEPPER:-dev-pepper-change-me}
+    volumes:
+      - uploads:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build: ./apps/web
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/v1
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
+  uploads:
