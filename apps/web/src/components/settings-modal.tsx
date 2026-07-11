@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { setToken, clearToken, getToken } from '@/lib/auth';
+import {
+  setToken,
+  clearToken,
+  getToken,
+  getApiUrl,
+  setApiUrl,
+  getDefaultApiUrl,
+} from '@/lib/auth';
 import { refreshClient } from '@/lib/api-client';
 
 interface SettingsModalProps {
@@ -12,16 +19,42 @@ interface SettingsModalProps {
 
 export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
   const [token, setTokenValue] = useState('');
+  const [apiUrl, setApiUrlValue] = useState('');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
       setTokenValue(getToken() ?? '');
+      setApiUrlValue(getApiUrl());
       setSaved(false);
     }
   }, [open]);
 
   if (!open) return null;
+
+  const handleSave = () => {
+    if (token.trim()) {
+      setToken(token.trim());
+    }
+    if (apiUrl.trim()) {
+      setApiUrl(apiUrl.trim());
+    }
+    refreshClient();
+    setSaved(true);
+    onSaved?.();
+  };
+
+  const handleClear = () => {
+    clearToken();
+    setTokenValue('');
+    refreshClient();
+    setSaved(true);
+    onSaved?.();
+  };
+
+  const handleResetApiUrl = () => {
+    setApiUrlValue(getDefaultApiUrl());
+  };
 
   return (
     <div
@@ -36,9 +69,35 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
         role="dialog"
         aria-labelledby="settings-title"
       >
-        <h2 id="settings-title" className="mb-4 font-mono text-sm font-semibold uppercase tracking-wider text-muted">
+        <h2
+          id="settings-title"
+          className="mb-4 font-mono text-sm font-semibold uppercase tracking-wider text-muted"
+        >
           Settings
         </h2>
+
+        <label className="mb-1 block font-mono text-xs text-muted" htmlFor="api-url-input">
+          API Endpoint URL
+        </label>
+        <input
+          id="api-url-input"
+          type="url"
+          value={apiUrl}
+          onChange={(e) => setApiUrlValue(e.target.value)}
+          placeholder={getDefaultApiUrl()}
+          className="mb-1 w-full border border-border bg-bg px-3 py-2 font-mono text-sm text-text outline-none focus:border-accent"
+        />
+        <p className="mb-4 font-mono text-xs text-muted">
+          Overrides <code className="text-accent">NEXT_PUBLIC_API_URL</code> via
+          localStorage (<code className="text-accent">visboard_api_url</code>).
+          <button
+            type="button"
+            onClick={handleResetApiUrl}
+            className="ml-2 text-accent hover:underline"
+          >
+            Reset to default
+          </button>
+        </p>
 
         <label className="mb-1 block font-mono text-xs text-muted" htmlFor="pat-input">
           Personal Access Token
@@ -58,33 +117,20 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
           Stored in localStorage as <code className="font-mono">visboard_token</code>.
         </p>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => {
-              if (token.trim()) {
-                setToken(token.trim());
-                refreshClient();
-                setSaved(true);
-                onSaved?.();
-              }
-            }}
+            onClick={handleSave}
             className="border border-accent bg-accent-dim px-4 py-1.5 font-mono text-xs text-text hover:bg-accent"
           >
-            Save Token
+            Save
           </button>
           <button
             type="button"
-            onClick={() => {
-              clearToken();
-              setTokenValue('');
-              refreshClient();
-              setSaved(true);
-              onSaved?.();
-            }}
+            onClick={handleClear}
             className="border border-border px-4 py-1.5 font-mono text-xs text-muted hover:border-muted hover:text-text"
           >
-            Clear
+            Clear Token
           </button>
           <button
             type="button"
@@ -96,7 +142,7 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
         </div>
 
         {saved && (
-          <p className="mt-3 font-mono text-xs text-success">Token updated.</p>
+          <p className="mt-3 font-mono text-xs text-success">Settings updated.</p>
         )}
       </div>
     </div>

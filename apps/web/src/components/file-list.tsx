@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import type { FileRecord } from '@visboard/sdk';
+import { api } from '@/lib/api-client';
 
 interface FileListProps {
   files: FileRecord[];
@@ -9,6 +11,37 @@ interface FileListProps {
 }
 
 export function FileList({ files, ws, project }: FileListProps) {
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  const handleDownload = async (file: FileRecord) => {
+    setDownloadingId(file.id);
+    setDownloadError(null);
+
+    const result = await api.files.download(ws, project, file.id);
+    if (!result.ok) {
+      setDownloadError(result.error);
+      setDownloadingId(null);
+      return;
+    }
+
+    try {
+      const blob = await result.data.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = file.name;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } catch {
+      setDownloadError('Failed to download file');
+    }
+
+    setDownloadingId(null);
+  };
+
   if (files.length === 0) {
     return (
       <div className="flex flex-1 items-center justify-center font-mono text-sm text-muted">
@@ -17,13 +50,14 @@ export function FileList({ files, ws, project }: FileListProps) {
     );
   }
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/v1';
-
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="border-b border-border px-4 py-3">
         <h2 className="font-mono text-sm text-text">Files</h2>
         <p className="font-mono text-xs text-muted">{files.length} file(s)</p>
+        {downloadError && (
+          <p className="mt-1 font-mono text-xs text-red-400">{downloadError}</p>
+        )}
       </div>
 
       <table className="w-full font-mono text-xs">
@@ -42,14 +76,15 @@ export function FileList({ files, ws, project }: FileListProps) {
               <td className="px-4 py-2 text-muted">{file.mime_type}</td>
               <td className="px-4 py-2 text-muted">{formatBytes(file.size_bytes)}</td>
               <td className="px-4 py-2">
-                <a
-                  href={`${apiUrl}/workspaces/${ws}/projects/${project}/files/${file.id}?download=1`}
-                  className="text-accent hover:underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => handleDownload(file)}
+                  disabled={downloadingId === file.id}
+                  className="text-accent hover:underline disabled:opacity-50"
+                  title={`Download ${file.name}`}
                 >
-                  ↓
-                </a>
+                  {downloadingId === file.id ? '…' : '↓'}
+                </button>
               </td>
             </tr>
           ))}

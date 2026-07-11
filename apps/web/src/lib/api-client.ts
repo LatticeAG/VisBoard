@@ -4,60 +4,100 @@ import type {
   Project,
   Note,
   ChecklistWithItems,
-  ChecklistItem,
   FileRecord,
   EventRecord,
+  Agent,
+  CreateNoteInput,
+  CreateChecklistInput,
+  CreateChecklistItemInput,
+  CreateWorkspaceInput,
 } from '@visboard/sdk';
-import { getToken } from './auth';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/v1';
+import { getToken, getApiUrl } from './auth';
 
 let client: VisBoardClient | null = null;
 
 export function getClient(): VisBoardClient {
+  const baseUrl = typeof window !== 'undefined' ? getApiUrl() : getApiUrl();
   if (!client) {
     client = new VisBoardClient({
-      baseUrl: API_URL,
+      baseUrl,
       token: typeof window !== 'undefined' ? getToken() ?? undefined : undefined,
     });
-  } else if (typeof window !== 'undefined') {
-    client.setToken(getToken() ?? undefined);
+  } else {
+    client = new VisBoardClient({
+      baseUrl,
+      token: typeof window !== 'undefined' ? getToken() ?? undefined : undefined,
+    });
   }
   return client;
 }
 
 export function refreshClient(): VisBoardClient {
   client = new VisBoardClient({
-    baseUrl: API_URL,
+    baseUrl: getApiUrl(),
     token: typeof window !== 'undefined' ? getToken() ?? undefined : undefined,
   });
   return client;
 }
 
+export function isDemoMode(): boolean {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('demo') === '1';
+}
+
+export type ApiErrorKind = 'auth' | 'network' | 'api';
+
 export type ApiResult<T> =
   | { ok: true; data: T; mock: false }
   | { ok: true; data: T; mock: true }
-  | { ok: false; error: string; mock: boolean };
+  | { ok: false; error: string; mock: false; status?: number; kind?: ApiErrorKind };
 
-async function withFallback<T>(
+function parseError(err: unknown): { error: string; status?: number; kind: ApiErrorKind } {
+  if (err instanceof VisBoardError) {
+    if (err.status === 401) {
+      return {
+        error: 'Unauthorized — paste your personal access token in Settings',
+        status: 401,
+        kind: 'auth',
+      };
+    }
+    return {
+      error: err.detail ?? err.title,
+      status: err.status,
+      kind: 'api',
+    };
+  }
+  if (
+    err instanceof TypeError ||
+    (err instanceof Error &&
+      (err.message.includes('fetch') ||
+        err.message.includes('Failed to fetch') ||
+        err.message.includes('NetworkError')))
+  ) {
+    return {
+      error: 'Cannot connect to API — ensure the server is running and the API URL is correct',
+      kind: 'network',
+    };
+  }
+  return {
+    error: err instanceof Error ? err.message : 'Unknown error',
+    kind: 'api',
+  };
+}
+
+async function withApi<T>(
   fn: () => Promise<T>,
-  fallback: T,
+  fallback?: T,
 ): Promise<ApiResult<T>> {
   try {
     const data = await fn();
     return { ok: true, data, mock: false };
   } catch (err) {
-    if (err instanceof VisBoardError) {
-      return { ok: false, error: err.detail ?? err.title, mock: false };
-    }
-    if (err instanceof TypeError || (err instanceof Error && err.message.includes('fetch'))) {
+    if (isDemoMode() && fallback !== undefined) {
       return { ok: true, data: fallback, mock: true };
     }
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : 'Unknown error',
-      mock: false,
-    };
+    const parsed = parseError(err);
+    return { ok: false, error: parsed.error, mock: false, status: parsed.status, kind: parsed.kind };
   }
 }
 
@@ -77,7 +117,7 @@ const MOCK_PROJECTS: Project[] = [
     workspace_id: 'ws_01ARZ3NDEKTSV4RRFFQ69G5FAA',
     slug: 'demo',
     name: 'Demo Project',
-    description: 'Mock project — API unavailable',
+    description: 'Mock project — add ?demo=1 to explore without API',
     status: 'active',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -200,33 +240,56 @@ const MOCK_EVENTS: EventRecord[] = [
   },
 ];
 
+const MOCK_AGENTS: Agent[] = [
+  {
+    id: 'agent_01ARZ3NDEKTSV4RRFFQ69G5FAL',
+    workspace_id: 'ws_01ARZ3NDEKTSV4RRFFQ69G5FAA',
+    name: 'demo-agent',
+    description: 'Mock agent for demo mode',
+    capabilities: [],
+    scopes: ['read', 'write'],
+    project_ids: ['prj_01ARZ3NDEKTSV4RRFFQ69G5FAB'],
+    token_prefix: 'vb_agt_demo',
+    status: 'active',
+    created_by_id: 'user_01ARZ3NDEKTSV4RRFFQ69G5FAD',
+    created_at: new Date().toISOString(),
+  },
+];
+
 export const api = {
+  health: {
+    check: () => withApi(() => getClient().health.check()),
+  },
   workspaces: {
     list: () =>
-      withFallback(() => getClient().workspaces.list(), MOCK_WORKSPACES),
+      withApi(() => getClient().workspaces.list(), MOCK_WORKSPACES),
     get: (ws: string) =>
-      withFallback(
+      withApi(
         () => getClient().workspaces.get(ws),
         MOCK_WORKSPACES.find((w) => w.slug === ws) ?? MOCK_WORKSPACES[0],
       ),
+    create: (input: CreateWorkspaceInput) =>
+      withApi(() => getClient().workspaces.create(input)),
   },
   projects: {
     list: (ws: string) =>
-      withFallback(() => getClient().projects.list(ws), MOCK_PROJECTS),
+      withApi(() => getClient().projects.list(ws), MOCK_PROJECTS),
     get: (ws: string, p: string) =>
-      withFallback(
+      withApi(
         () => getClient().projects.get(ws, p),
         MOCK_PROJECTS.find((pr) => pr.slug === p) ?? MOCK_PROJECTS[0],
       ),
   },
   notes: {
     list: (ws: string, p: string) =>
-      withFallback(() => getClient().notes.list(ws, p), MOCK_NOTES),
+      withApi(() => getClient().notes.list(ws, p), MOCK_NOTES),
     get: (ws: string, p: string, id: string) =>
-      withFallback(
+      withApi(
         () => getClient().notes.get(ws, p, id),
         MOCK_NOTES.find((n) => n.id === id) ?? MOCK_NOTES[0],
       ),
+    create: (ws: string, p: string, input: CreateNoteInput) =>
+      withApi(() => getClient().notes.create(ws, p, input)),
     update: (
       ws: string,
       p: string,
@@ -245,7 +308,7 @@ export const api = {
           updated_at: new Date().toISOString(),
         };
       };
-      return withFallback(
+      return withApi(
         () => getClient().notes.update(ws, p, id, body, `W/"${version}"`),
         fallback(),
       );
@@ -253,7 +316,16 @@ export const api = {
   },
   checklists: {
     list: (ws: string, p: string) =>
-      withFallback(() => getClient().checklists.list(ws, p), MOCK_CHECKLISTS),
+      withApi(() => getClient().checklists.list(ws, p), MOCK_CHECKLISTS),
+    create: (ws: string, p: string, input: CreateChecklistInput) =>
+      withApi(() => getClient().checklists.create(ws, p, input)),
+    addItem: (
+      ws: string,
+      p: string,
+      checklistId: string,
+      input: CreateChecklistItemInput,
+    ) =>
+      withApi(() => getClient().checklists.addItem(ws, p, checklistId, input)),
     updateItem: (
       ws: string,
       p: string,
@@ -262,8 +334,9 @@ export const api = {
       body: { done?: boolean },
     ) => {
       const fallback =
-        MOCK_CHECKLISTS[0]!.items.find((i) => i.id === itemId) ?? MOCK_CHECKLISTS[0]!.items[0]!;
-      return withFallback(
+        MOCK_CHECKLISTS[0]!.items.find((i) => i.id === itemId) ??
+        MOCK_CHECKLISTS[0]!.items[0]!;
+      return withApi(
         () => getClient().checklists.updateItem(ws, p, checklistId, itemId, body),
         { ...fallback, ...body },
       );
@@ -271,15 +344,72 @@ export const api = {
   },
   files: {
     list: (ws: string, p: string) =>
-      withFallback(() => getClient().files.list(ws, p), MOCK_FILES),
+      withApi(() => getClient().files.list(ws, p), MOCK_FILES),
+    upload: (ws: string, p: string, file: File) =>
+      withApi(() =>
+        getClient().files.upload(ws, p, { file, filename: file.name }),
+      ),
+    download: (ws: string, p: string, fileId: string) =>
+      withApi(() => getClient().files.download(ws, p, fileId)),
+  },
+  agents: {
+    list: (ws: string) =>
+      withApi(() => getClient().agents.list(ws), MOCK_AGENTS),
+  },
+  agentsMd: {
+    sync: (ws: string, p: string) =>
+      withApi(() => getClient().agentsMd.sync(ws, p)),
   },
   events: {
     list: (ws: string, p: string, params?: { limit?: number }) =>
-      withFallback(
+      withApi(
         () => getClient().events.list(ws, p, params),
         { data: MOCK_EVENTS, pagination: { next_cursor: null, has_more: false } },
       ),
+    listRecentAcrossProjects: async (
+      ws: string,
+      limit = 20,
+    ): Promise<ApiResult<EventRecord[]>> => {
+      const projectsResult = await api.projects.list(ws);
+      if (!projectsResult.ok) {
+        return projectsResult;
+      }
+
+      if (projectsResult.mock) {
+        return { ok: true, data: MOCK_EVENTS.slice(0, limit), mock: true };
+      }
+
+      const allEvents: EventRecord[] = [];
+      const results = await Promise.all(
+        projectsResult.data.map((project) =>
+          api.events.list(ws, project.slug, { limit: 50 }),
+        ),
+      );
+
+      for (const result of results) {
+        if (result.ok) {
+          allEvents.push(...result.data.data);
+        }
+      }
+
+      allEvents.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
+
+      return { ok: true, data: allEvents.slice(0, limit), mock: false };
+    },
   },
 };
 
-export { API_URL };
+export function getEventsStreamUrl(ws: string, project: string): string {
+  const base = getApiUrl().replace(/\/$/, '');
+  const token = getToken();
+  const url = new URL(
+    `${base}/workspaces/${ws}/projects/${project}/events/stream`,
+  );
+  if (token) {
+    url.searchParams.set('token', token);
+  }
+  return url.toString();
+}

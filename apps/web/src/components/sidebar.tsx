@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import type { Note, ChecklistWithItems, FileRecord } from '@visboard/sdk';
 
 export type SidebarTab = 'notes' | 'checklists' | 'files';
@@ -14,6 +15,10 @@ interface SidebarProps {
   selectedChecklistId: string | null;
   onSelectNote: (id: string) => void;
   onSelectChecklist: (id: string) => void;
+  onNewNote?: () => void;
+  onNewChecklist?: () => void;
+  onUploadFile?: (file: File) => void;
+  uploading?: boolean;
 }
 
 export function Sidebar({
@@ -26,12 +31,26 @@ export function Sidebar({
   selectedChecklistId,
   onSelectNote,
   onSelectChecklist,
+  onNewNote,
+  onNewChecklist,
+  onUploadFile,
+  uploading,
 }: SidebarProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const tabs: { id: SidebarTab; label: string }[] = [
     { id: 'notes', label: 'Notes' },
     { id: 'checklists', label: 'Checklists' },
     { id: 'files', label: 'Files' },
   ];
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onUploadFile) {
+      onUploadFile(file);
+    }
+    e.target.value = '';
+  };
 
   return (
     <aside className="flex w-sidebar shrink-0 flex-col border-r border-border bg-surface">
@@ -50,6 +69,45 @@ export function Sidebar({
             {tab.label}
           </button>
         ))}
+      </div>
+
+      <div className="border-b border-border px-2 py-2">
+        {activeTab === 'notes' && onNewNote && (
+          <button
+            type="button"
+            onClick={onNewNote}
+            className="w-full border border-border px-2 py-1 font-mono text-xs text-muted hover:border-accent hover:text-text"
+          >
+            + New note
+          </button>
+        )}
+        {activeTab === 'checklists' && onNewChecklist && (
+          <button
+            type="button"
+            onClick={onNewChecklist}
+            className="w-full border border-border px-2 py-1 font-mono text-xs text-muted hover:border-accent hover:text-text"
+          >
+            + New checklist
+          </button>
+        )}
+        {activeTab === 'files' && onUploadFile && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="w-full border border-border px-2 py-1 font-mono text-xs text-muted hover:border-accent hover:text-text disabled:opacity-50"
+            >
+              {uploading ? 'Uploading…' : '+ Upload file'}
+            </button>
+          </>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto">

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { EventRecord } from '@visboard/sdk';
-import { api } from '@/lib/api-client';
+import { api, getEventsStreamUrl } from '@/lib/api-client';
 
 interface ActivityStreamProps {
   ws: string;
@@ -15,27 +15,93 @@ export function ActivityStream({ ws, project, collapsed, onToggle }: ActivityStr
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [mock, setMock] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usingSse, setUsingSse] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
-    const poll = async () => {
-      const result = await api.events.list(ws, project, { limit: 50 });
+    const applyEvents = (data: EventRecord[], isMock: boolean) => {
       if (!mounted) return;
-      if (result.ok) {
-        setEvents(result.data.data);
-        setMock(result.mock);
-        setError(null);
-      } else {
-        setError(result.error);
+      setEvents(data);
+      setMock(isMock);
+      setError(null);
+    };
+
+    const startPolling = () => {
+      if (pollRef.current) return;
+
+      const poll = async () => {
+        const result = await api.events.list(ws, project, { limit: 50 });
+        if (!mounted) return;
+        if (result.ok) {
+          applyEvents(result.data.data, result.mock);
+        } else {
+          setError(result.error);
+        }
+      };
+
+      poll();
+      pollRef.current = setInterval(poll, 3000);
+    };
+
+    const stopPolling = () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current);
+        pollRef.current = null;
       }
     };
 
-    poll();
-    const interval = setInterval(poll, 3000);
+    const trySse = () => {
+      if (typeof EventSource === 'undefined') {
+        startPolling();
+        return;
+      }
+
+      const url = getEventsStreamUrl(ws, project);
+      const es = new EventSource(url);
+      eventSourceRef.current = es;
+
+      es.onopen = () => {
+        if (!mounted) return;
+        setUsingSse(true);
+        stopPolling();
+      };
+
+      es.onmessage = (event) => {
+        if (!mounted) return;
+        try {
+          const record = JSON.parse(event.data) as EventRecord;
+          setEvents((prev) => {
+            const exists = prev.some((e) => e.id === record.id);
+            if (exists) return prev;
+            return [record, ...prev].slice(0, 50);
+          });
+          setError(null);
+        } catch {
+          // ignore malformed events
+        }
+      };
+
+      es.onerror = () => {
+        if (!mounted) return;
+        es.close();
+        eventSourceRef.current = null;
+        setUsingSse(false);
+        startPolling();
+      };
+    };
+
+    trySse();
+
     return () => {
       mounted = false;
-      clearInterval(interval);
+      stopPolling();
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
     };
   }, [ws, project]);
 
@@ -59,7 +125,8 @@ export function ActivityStream({ ws, project, collapsed, onToggle }: ActivityStr
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <span className="font-mono text-xs uppercase tracking-wide text-muted">
           Activity
-          {mock && <span className="ml-2 text-accent-dim">(mock)</span>}
+          {mock && <span className="ml-2 text-accent-dim">(demo)</span>}
+          {usingSse && <span className="ml-2 text-success">(live)</span>}
         </span>
         <button
           type="button"
