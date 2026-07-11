@@ -1,0 +1,115 @@
+import type { Database } from "@visboard/db";
+
+const DRIZZLE_NAME = Symbol.for("drizzle:Name");
+
+export type InMemoryStore = {
+  workspaces: Array<Record<string, unknown>>;
+  users: Array<Record<string, unknown>>;
+  workspace_members: Array<Record<string, unknown>>;
+  personal_access_tokens: Array<Record<string, unknown>>;
+  projects: Array<Record<string, unknown>>;
+  project_members: Array<Record<string, unknown>>;
+  notes: Array<Record<string, unknown>>;
+  note_versions: Array<Record<string, unknown>>;
+  checklists: Array<Record<string, unknown>>;
+  checklist_items: Array<Record<string, unknown>>;
+  files: Array<Record<string, unknown>>;
+  agents: Array<Record<string, unknown>>;
+  events: Array<Record<string, unknown>>;
+};
+
+export function createEmptyStore(): InMemoryStore {
+  return {
+    workspaces: [],
+    users: [],
+    workspace_members: [],
+    personal_access_tokens: [],
+    projects: [],
+    project_members: [],
+    notes: [],
+    note_versions: [],
+    checklists: [],
+    checklist_items: [],
+    files: [],
+    agents: [],
+    events: [],
+  };
+}
+
+function tableKey(table: object): keyof InMemoryStore {
+  const name = (table as Record<symbol, string>)[DRIZZLE_NAME];
+  if (!name || !(name in createEmptyStore())) {
+    throw new Error(`Unknown table: ${String(name)}`);
+  }
+  return name as keyof InMemoryStore;
+}
+
+function isCountSelect(arg: unknown): boolean {
+  return (
+    typeof arg === "object" &&
+    arg !== null &&
+    "value" in arg &&
+    Object.keys(arg as object).length <= 2
+  );
+}
+
+export function createInMemoryDb(
+  initial?: Partial<InMemoryStore>,
+): Database & { store: InMemoryStore } {
+  const store: InMemoryStore = { ...createEmptyStore(), ...initial };
+
+  const db = {
+    select: (arg?: unknown) => {
+      if (isCountSelect(arg)) {
+        return {
+          from: (table: object) => ({
+            then: (resolve: (rows: { value: number }[]) => void) => {
+              const key = tableKey(table);
+              resolve([{ value: store[key].length }]);
+            },
+          }),
+        };
+      }
+
+      return {
+        from: (table: object) => {
+          const key = tableKey(table);
+          const chain = {
+            where: () => chain,
+            orderBy: () => chain,
+            limit: (n: number) => Promise.resolve(store[key].slice(0, n)),
+            then: (resolve: (rows: unknown[]) => void) =>
+              Promise.resolve([...store[key]]).then(resolve),
+          };
+          return chain;
+        },
+      };
+    },
+    insert: (table: object) => ({
+      values: (vals: Record<string, unknown> | Record<string, unknown>[]) => {
+        const key = tableKey(table);
+        const items = Array.isArray(vals) ? vals : [vals];
+        for (const item of items) {
+          store[key].push({ ...item });
+        }
+        return { returning: () => Promise.resolve(items) };
+      },
+    }),
+    update: (table: object) => ({
+      set: (vals: Record<string, unknown>) => ({
+        where: () => {
+          const key = tableKey(table);
+          const updated = store[key].map((row) => ({ ...row, ...vals }));
+          store[key] = updated;
+          return { returning: () => Promise.resolve(updated) };
+        },
+      }),
+    }),
+  };
+
+  return {
+    db: db as Database["db"],
+    client: { end: async () => {} } as Database["client"],
+    store,
+  };
+}
