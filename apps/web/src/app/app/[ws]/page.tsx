@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { AppHeader } from '@/components/app-header';
+import { InlineAlert } from '@/components/toast';
 import { api } from '@/lib/api-client';
 import type { Project, EventRecord } from '@visboard/sdk';
 
@@ -14,24 +15,31 @@ export default function WorkspaceDashboardPage() {
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [mock, setMock] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
-      const projectsResult = await api.projects.list(ws);
-      if (projectsResult.ok) {
-        setProjects(projectsResult.data);
-        setMock(projectsResult.mock);
+      setLoading(true);
+      setError(null);
 
-        const firstProject = projectsResult.data[0];
-        if (firstProject) {
-          const eventsResult = await api.events.list(ws, firstProject.slug, {
-            limit: 10,
-          });
-          if (eventsResult.ok) {
-            setEvents(eventsResult.data.data);
-          }
-        }
+      const projectsResult = await api.projects.list(ws);
+      if (!projectsResult.ok) {
+        setError(projectsResult.error);
+        setLoading(false);
+        return;
       }
+
+      setProjects(projectsResult.data);
+      setMock(projectsResult.mock);
+
+      const eventsResult = await api.events.listRecentAcrossProjects(ws, 20);
+      if (eventsResult.ok) {
+        setEvents(eventsResult.data);
+        if (eventsResult.mock) setMock(true);
+      } else {
+        setError(eventsResult.error);
+      }
+
       setLoading(false);
     }
     load();
@@ -39,15 +47,19 @@ export default function WorkspaceDashboardPage() {
 
   return (
     <>
-      <AppHeader
-        breadcrumb={[{ label: ws, href: `/app/${ws}` }]}
-      />
+      <AppHeader breadcrumb={[{ label: ws, href: `/app/${ws}` }]} />
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 overflow-y-auto p-6">
           {mock && (
-            <div className="mb-4 border border-accent-dim bg-surface px-4 py-2 font-mono text-xs text-muted">
-              Mock data — API unavailable
-            </div>
+            <InlineAlert
+              message="Demo mode — showing mock data (?demo=1)"
+              variant="info"
+              className="mb-4"
+            />
+          )}
+
+          {error && (
+            <InlineAlert message={error} variant="error" className="mb-4" />
           )}
 
           <h2 className="mb-4 font-mono text-xs uppercase tracking-wider text-muted">
@@ -98,6 +110,7 @@ export default function WorkspaceDashboardPage() {
         <aside className="w-activity shrink-0 border-l border-border bg-surface">
           <div className="border-b border-border px-3 py-2 font-mono text-xs uppercase tracking-wide text-muted">
             Recent Activity
+            {mock && <span className="ml-2 text-accent-dim">(demo)</span>}
           </div>
           <div className="overflow-y-auto">
             {events.map((evt) => (
@@ -109,9 +122,12 @@ export default function WorkspaceDashboardPage() {
                 <span className="ml-2 text-muted">
                   {new Date(evt.created_at).toLocaleTimeString()}
                 </span>
+                <div className="mt-0.5 text-muted">
+                  {evt.actor_type}:{evt.actor_id.slice(0, 10)}
+                </div>
               </div>
             ))}
-            {events.length === 0 && (
+            {!loading && events.length === 0 && !error && (
               <p className="px-3 py-4 font-mono text-xs text-muted">No recent events</p>
             )}
           </div>

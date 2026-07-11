@@ -12,9 +12,10 @@ interface NoteEditorProps {
     frontmatter: Record<string, unknown>;
   }) => void;
   saving?: boolean;
+  saveMessage?: { type: 'success' | 'error'; text: string } | null;
 }
 
-export function NoteEditor({ note, onSave, saving }: NoteEditorProps) {
+export function NoteEditor({ note, onSave, saving, saveMessage }: NoteEditorProps) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [frontmatterText, setFrontmatterText] = useState('{}');
@@ -68,6 +69,15 @@ export function NoteEditor({ note, onSave, saving }: NoteEditorProps) {
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
+        {saveMessage && (
+          <span
+            className={`font-mono text-xs ${
+              saveMessage.type === 'success' ? 'text-success' : 'text-red-400'
+            }`}
+          >
+            {saveMessage.text}
+          </span>
+        )}
       </div>
 
       <div className="border-b border-border px-4 py-2">
