@@ -40,7 +40,7 @@ contextRoutes.post("/agents.md/sync", requireScope("read", "admin"), async (c) =
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  const { project } = await getProjectBySlug(db, wsSlug, projectSlug);
+  const { project } = await getProjectBySlug(db, wsSlug, projectSlug, auth);
   const markdown = await syncAgentsMdWithDb(db, project.id);
   return c.text(markdown, 200, { "Content-Type": "text/markdown" });
 });

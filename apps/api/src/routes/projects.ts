@@ -60,7 +60,7 @@ projectRoutes.get("/:p", requireScope("read"), async (c) => {
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  const { project } = await getProjectBySlug(db, wsSlug, projectSlug);
+  const { project } = await getProjectBySlug(db, wsSlug, projectSlug, auth);
   const { formatProject } = await import("../services/project.js");
   return c.json(formatProject(project));
 });

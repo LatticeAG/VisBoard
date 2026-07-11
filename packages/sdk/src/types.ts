@@ -33,6 +33,7 @@ export type {
 } from "@visboard/shared";
 export type {
   CreateWorkspaceInput,
+  ImportResult,
   UpdateWorkspaceInput,
   Workspace,
 } from "@visboard/shared";
@@ -132,6 +133,7 @@ export interface GetContextParams {
 export interface BootstrapInput {
   name: string;
   slug?: string;
+  bootstrapToken?: string;
 }
 
 import type { Project, Workspace } from "@visboard/shared";

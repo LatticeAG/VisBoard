@@ -1,4 +1,5 @@
 import { createWriteStream } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import type { Command } from "commander";
@@ -25,6 +26,33 @@ async function waitForExport(
     await new Promise((resolve) => setTimeout(resolve, 1000));
   }
   throw new Error("Export timed out waiting for zip file");
+}
+
+export function registerImportCommand(program: Command): void {
+  program
+    .command("import")
+    .description("Import workspace data from an export zip")
+    .requiredOption("--file <path>", "export zip path")
+    .requiredOption("--slug <slug>", "new workspace slug")
+    .option("--name <name>", "new workspace name")
+    .action(async function (
+      this: Command,
+      opts: { file: string; slug: string; name?: string },
+    ) {
+      const globals = getGlobalOptions(this);
+      const { client } = await createClient(globals);
+
+      const buffer = await readFile(opts.file);
+      const blob = new Blob([buffer], { type: "application/zip" });
+      const result = await client.workspaces.import({
+        file: blob,
+        slug: opts.slug,
+        name: opts.name ?? opts.slug,
+      });
+
+      outputText(`Imported workspace: ${result.workspace.slug}`, globals);
+      outputData(result, globals);
+    });
 }
 
 export function registerExportCommand(program: Command): void {

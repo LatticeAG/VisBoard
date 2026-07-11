@@ -7,6 +7,42 @@ import { actorFromAuth } from "../lib/helpers.js";
 import { parseLimit, paginate } from "../lib/pagination.js";
 import { getProjectBySlug } from "./project.js";
 
+type FormattedEvent = ReturnType<typeof formatEvent>;
+
+type EventListener = (event: FormattedEvent) => void;
+
+const projectListeners = new Map<string, Set<EventListener>>();
+
+export function subscribeToProjectEvents(
+  projectId: string,
+  listener: EventListener,
+): () => void {
+  let listeners = projectListeners.get(projectId);
+  if (!listeners) {
+    listeners = new Set();
+    projectListeners.set(projectId, listeners);
+  }
+  listeners.add(listener);
+  return () => {
+    listeners?.delete(listener);
+    if (listeners?.size === 0) {
+      projectListeners.delete(projectId);
+    }
+  };
+}
+
+function emitProjectEvent(projectId: string, event: FormattedEvent) {
+  const listeners = projectListeners.get(projectId);
+  if (!listeners) return;
+  for (const listener of listeners) {
+    listener(event);
+  }
+}
+
+export function clearEventListenersForTests(): void {
+  projectListeners.clear();
+}
+
 export async function createEvent(
   db: Database["db"],
   projectId: string,
@@ -37,7 +73,9 @@ export async function createEvent(
     })
     .returning();
 
-  return formatEvent(event!);
+  const formatted = formatEvent(event!);
+  emitProjectEvent(projectId, formatted);
+  return formatted;
 }
 
 export async function appendProjectEvent(
@@ -52,7 +90,12 @@ export async function appendProjectEvent(
     payload?: Record<string, unknown>;
   },
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(
+    db,
+    workspaceSlug,
+    projectSlug,
+    auth,
+  );
   return createEvent(db, project.id, auth, input);
 }
 
@@ -66,8 +109,14 @@ export async function listProjectEvents(
     limit?: string;
     cursor?: string;
   },
+  auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(
+    db,
+    workspaceSlug,
+    projectSlug,
+    auth,
+  );
   const limit = parseLimit(query.limit) + 1;
 
   const conditions = [eq(events.projectId, project.id)];
@@ -115,6 +164,48 @@ export async function listProjectEvents(
 
   const formatted = rows.map(formatEvent);
   return paginate(formatted, parseLimit(query.limit));
+}
+
+export async function pollProjectEvents(
+  db: Database["db"],
+  projectId: string,
+  query: {
+    since?: string;
+    types?: string;
+  },
+): Promise<FormattedEvent[]> {
+  const conditions = [eq(events.projectId, projectId)];
+
+  if (query.types) {
+    const typeList = query.types.split(",").map((t) => t.trim());
+    conditions.push(inArray(events.type, typeList));
+  }
+
+  if (query.since) {
+    if (query.since.startsWith("evt_")) {
+      const [sinceEvent] = await db
+        .select()
+        .from(events)
+        .where(eq(events.id, query.since))
+        .limit(1);
+      if (sinceEvent) {
+        conditions.push(gt(events.createdAt, sinceEvent.createdAt));
+      }
+    } else {
+      const sinceDate = new Date(query.since);
+      if (!Number.isNaN(sinceDate.getTime())) {
+        conditions.push(gt(events.createdAt, sinceDate));
+      }
+    }
+  }
+
+  const rows = await db
+    .select()
+    .from(events)
+    .where(and(...conditions))
+    .orderBy(events.createdAt);
+
+  return rows.map(formatEvent);
 }
 
 function formatEvent(e: typeof events.$inferSelect) {

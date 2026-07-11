@@ -27,8 +27,8 @@ export class AgentsMdResource {
     );
   }
 
-  sync(ws: string, project: string): Promise<void> {
-    return this.http.request<void>(
+  sync(ws: string, project: string): Promise<string> {
+    return this.http.request<string>(
       `/workspaces/${ws}/projects/${project}/agents.md/sync`,
       { method: "POST" },
     );

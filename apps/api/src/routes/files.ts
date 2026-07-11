@@ -26,7 +26,7 @@ fileRoutes.get("/", requireScope("read"), async (c) => {
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  const files = await listFiles(db, wsSlug, projectSlug);
+  const files = await listFiles(db, wsSlug, projectSlug, auth);
   return c.json({ data: files });
 });
 
@@ -78,6 +78,7 @@ fileRoutes.get("/:id", requireScope("read"), async (c) => {
       wsSlug,
       projectSlug,
       fileId,
+      auth,
     );
     return new Response(data, {
       headers: {
@@ -87,7 +88,7 @@ fileRoutes.get("/:id", requireScope("read"), async (c) => {
     });
   }
 
-  const file = await getFile(db, wsSlug, projectSlug, fileId);
+  const file = await getFile(db, wsSlug, projectSlug, fileId, auth);
   return c.json({
     id: file.id,
     project_id: file.projectId,

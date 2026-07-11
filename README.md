@@ -28,13 +28,15 @@ cp .env.example .env
 # 4. Migrate database
 pnpm --filter @visboard/db db:migrate
 
-# 5. Start API (terminal 1)
-pnpm --filter @visboard/api dev
-
-# 6. Bootstrap workspace + get admin token (terminal 2)
+# 5. (Optional) Seed demo workspace — or bootstrap for a PAT
+pnpm --filter @visboard/db db:seed
+# Preferred for admin token:
 pnpm --filter @visboard/cli exec visboard auth bootstrap --name "My Workspace"
 
-# 7. Start web UI (terminal 3)
+# 6. Start API (terminal 1)
+pnpm --filter @visboard/api dev
+
+# 7. Start web UI (terminal 2)
 pnpm --filter @visboard/web dev
 ```
 
@@ -61,12 +63,40 @@ chmod +x scripts/smoke.sh
 | Package | Description |
 |---------|-------------|
 | `@visboard/shared` | Zod schemas, IDs, scopes, event types |
-| `@visboard/db` | Drizzle ORM schema and migrations |
+| `@visboard/db` | Drizzle ORM schema, migrations, seed |
 | `@visboard/agents-md` | AGENTS.md protocol generator |
 | `@visboard/api` | Hono HTTP server |
 | `@visboard/sdk` | TypeScript client |
 | `@visboard/cli` | `visboard` command-line tool |
 | `@visboard/web` | Next.js web UI |
+| `@visboard/mcp` | MCP server for Cursor / Claude Desktop |
+
+## Features
+
+- **Workspaces & projects** — multi-project boards with slug-based routing
+- **Notes** — markdown notes with frontmatter, versioning, and ETag concurrency
+- **Checklists** — task lists with assignees and agent check/uncheck
+- **Files** — local filesystem uploads per project
+- **Agents** — scoped API keys for autonomous agents
+- **AGENTS.md** — auto-generated agent protocol per project
+- **Context API** — compact project snapshot for agents (`/context`, `/agents.md`)
+- **Events** — append-only activity log with polling and **SSE stream** (`/events/stream`)
+- **Export / import** — zip workspace export and roundtrip import (`visboard export`, `visboard import`)
+- **Auth** — PAT + agent keys; bootstrap for first install
+- **OpenAPI** — full REST spec at [`openapi/openapi.yaml`](./openapi/openapi.yaml)
+
+## MCP server
+
+The `@visboard/mcp` package exposes VisBoard to MCP-compatible clients (Cursor, Claude Desktop).
+
+```bash
+# Build and run (stdio transport)
+pnpm --filter @visboard/mcp build
+VISBOARD_TOKEN=vb_pat_... VISBOARD_BASE_URL=http://localhost:8080/v1 \
+  pnpm --filter @visboard/mcp exec visboard-mcp
+```
+
+Configure in your MCP client with env vars `VISBOARD_TOKEN`, `VISBOARD_BASE_URL`, and optional `VISBOARD_WORKSPACE`.
 
 ## CLI examples
 
@@ -77,7 +107,15 @@ visboard note create --project pipeline --title "Spec" --file ./SPEC.md
 visboard agent create --name "Reviewer" --scopes read,write:checklists --project pipeline
 visboard context --project pipeline
 visboard agents-md --project pipeline
+visboard export --workspace acme --out ./export.zip
+visboard import --file ./export.zip --slug acme-copy --name "Acme Copy"
 ```
+
+## API documentation
+
+- OpenAPI 3.1 spec: [`openapi/openapi.yaml`](./openapi/openapi.yaml)
+- Base URL: `http://localhost:8080/v1`
+- Errors: RFC 7807 `application/problem+json`
 
 ## License
 

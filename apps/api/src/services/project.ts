@@ -3,7 +3,7 @@ import { EventType, PREFIX, createId, slugify } from "@visboard/shared";
 import { and, eq, isNull } from "drizzle-orm";
 import type { Database } from "@visboard/db";
 import type { AuthPrincipal } from "../auth/middleware.js";
-import { actorFromAuth } from "../lib/helpers.js";
+import { actorFromAuth, assertAgentProjectAccess } from "../lib/helpers.js";
 import { conflict, notFound } from "../lib/errors.js";
 import { getWorkspaceBySlug } from "./workspace.js";
 import { scheduleAgentsMdSync } from "./agents-md-sync.js";
@@ -102,6 +102,7 @@ export async function getProjectBySlug(
   db: Database["db"],
   workspaceSlug: string,
   projectSlug: string,
+  auth?: AuthPrincipal,
 ) {
   const ws = await getWorkspaceBySlug(db, workspaceSlug);
   if (!ws) throw notFound(`Workspace '${workspaceSlug}' not found`);
@@ -124,6 +125,10 @@ export async function getProjectBySlug(
     );
   }
 
+  if (auth) {
+    assertAgentProjectAccess(auth, project.id);
+  }
+
   return { workspace: ws, project };
 }
 
@@ -138,7 +143,7 @@ export async function updateProject(
     status: string;
   }>,
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
   const now = new Date();
   const actor = actorFromAuth(auth);
 

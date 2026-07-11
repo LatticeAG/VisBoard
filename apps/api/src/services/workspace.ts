@@ -192,4 +192,4 @@ function formatUser(u: typeof users.$inferSelect) {
   };
 }
 
-export { formatUser };
+export { formatUser, formatWorkspace };

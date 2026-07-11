@@ -49,8 +49,13 @@ export function registerContextCommands(program: Command): void {
       const ws = requireWorkspace(workspace);
 
       if (opts.sync) {
-        await client.agentsMd.sync(ws, opts.project);
-        outputText("AGENTS.md sync triggered.", globals);
+        const markdown = await client.agentsMd.sync(ws, opts.project);
+        if (globals.json) {
+          outputData({ markdown }, globals);
+        } else {
+          outputText("AGENTS.md synced.", globals);
+          outputText(markdown, globals);
+        }
         return;
       }
 

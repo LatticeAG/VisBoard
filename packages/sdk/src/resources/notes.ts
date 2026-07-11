@@ -10,7 +10,7 @@ export class NotesResource {
   constructor(private readonly http: HttpClient) {}
 
   list(ws: string, project: string): Promise<Note[]> {
-    return this.http.request<Note[]>(
+    return this.http.requestList<Note>(
       `/workspaces/${ws}/projects/${project}/notes`,
     );
   }
@@ -60,7 +60,7 @@ export class NotesResource {
   }
 
   listVersions(ws: string, project: string, noteId: string): Promise<NoteVersion[]> {
-    return this.http.request<NoteVersion[]>(
+    return this.http.requestList<NoteVersion>(
       `/workspaces/${ws}/projects/${project}/notes/${noteId}/versions`,
     );
   }

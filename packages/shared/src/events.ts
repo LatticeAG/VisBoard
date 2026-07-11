@@ -12,6 +12,9 @@ export const EventType = {
   AGENT_REVOKED: "agent.revoked",
   AGENT_TURN_COMPLETED: "agent.turn.completed",
   SYSTEM_AGENTS_MD_SYNCED: "system.agents_md.synced",
+  COMMENT_CREATED: "comment.created",
+  COMMENT_UPDATED: "comment.updated",
+  COMMENT_DELETED: "comment.deleted",
 } as const;
 
 export type EventTypeValue = (typeof EventType)[keyof typeof EventType];
