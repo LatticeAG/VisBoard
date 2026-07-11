@@ -12,12 +12,17 @@ export function registerAuthCommands(program: Command): void {
     .description("Bootstrap a new VisBoard instance")
     .requiredOption("--name <name>", "workspace name")
     .option("--slug <slug>", "workspace slug")
-    .action(async function (this: Command, opts: { name: string; slug?: string }) {
+    .option("--bootstrap-token <token>", "bootstrap token for gated instances")
+    .action(async function (
+      this: Command,
+      opts: { name: string; slug?: string; bootstrapToken?: string },
+    ) {
       const globals = getGlobalOptions(this);
       const { client } = await createClient(globals);
       const result = await client.bootstrap.create({
         name: opts.name,
         slug: opts.slug,
+        bootstrapToken: opts.bootstrapToken,
       });
 
       await updateConfig({

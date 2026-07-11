@@ -22,8 +22,14 @@ export async function listFiles(
   db: Database["db"],
   workspaceSlug: string,
   projectSlug: string,
+  auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(
+    db,
+    workspaceSlug,
+    projectSlug,
+    auth,
+  );
   const rows = await db
     .select()
     .from(files)
@@ -53,7 +59,7 @@ export async function uploadFile(
     throw payloadTooLarge("Executable files are not allowed");
   }
 
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
   const fileId = createId(PREFIX.file);
   const storagePath = buildStoragePath(project.id, fileId, fileData.name);
   const actor = actorFromAuth(auth);
@@ -92,8 +98,14 @@ export async function getFile(
   workspaceSlug: string,
   projectSlug: string,
   fileId: string,
+  auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(
+    db,
+    workspaceSlug,
+    projectSlug,
+    auth,
+  );
   const [file] = await db
     .select()
     .from(files)
@@ -115,8 +127,9 @@ export async function readFileContent(
   workspaceSlug: string,
   projectSlug: string,
   fileId: string,
+  auth?: AuthPrincipal,
 ) {
-  const file = await getFile(db, workspaceSlug, projectSlug, fileId);
+  const file = await getFile(db, workspaceSlug, projectSlug, fileId, auth);
   const data = await readStoredFile(file.storagePath);
   return { file, data };
 }
@@ -128,7 +141,7 @@ export async function deleteFile(
   fileId: string,
   auth: AuthPrincipal,
 ) {
-  const file = await getFile(db, workspaceSlug, projectSlug, fileId);
+  const file = await getFile(db, workspaceSlug, projectSlug, fileId, auth);
   const now = new Date();
 
   await db

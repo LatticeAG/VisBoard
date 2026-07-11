@@ -28,7 +28,7 @@ noteRoutes.get("/", requireScope("read"), async (c) => {
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  const notes = await listNotes(db, wsSlug, projectSlug);
+  const notes = await listNotes(db, wsSlug, projectSlug, auth);
   return c.json({ data: notes });
 });
 
@@ -65,7 +65,7 @@ noteRoutes.get("/:id", requireScope("read"), async (c) => {
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  const note = await getNote(db, wsSlug, projectSlug, noteId);
+  const note = await getNote(db, wsSlug, projectSlug, noteId, auth);
   const { formatNote } = await import("../services/note.js");
   const formatted = formatNote(note);
   return c.json(formatted, 200, { ETag: noteEtag(note.version) });
@@ -129,7 +129,7 @@ noteRoutes.get("/:id/versions", requireScope("read"), async (c) => {
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  const versions = await listNoteVersions(db, wsSlug, projectSlug, noteId);
+  const versions = await listNoteVersions(db, wsSlug, projectSlug, noteId, auth);
   return c.json({ data: versions });
 });
 
@@ -146,6 +146,6 @@ noteRoutes.get("/:id/versions/:version", requireScope("read"), async (c) => {
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  const v = await getNoteVersion(db, wsSlug, projectSlug, noteId, version);
+  const v = await getNoteVersion(db, wsSlug, projectSlug, noteId, version, auth);
   return c.json(v);
 });

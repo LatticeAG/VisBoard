@@ -11,6 +11,7 @@ import {
   registerConfigCommands,
   registerDoctorCommand,
   registerExportCommand,
+  registerImportCommand,
 } from "./commands/ops.js";
 import { registerProjectCommands } from "./commands/project.js";
 import { registerWorkspaceCommands } from "./commands/workspace.js";
@@ -34,6 +35,7 @@ registerFileCommands(program);
 registerAgentCommands(program);
 registerContextCommands(program);
 registerExportCommand(program);
+registerImportCommand(program);
 registerDoctorCommand(program);
 registerConfigCommands(program);
 

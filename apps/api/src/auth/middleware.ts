@@ -15,6 +15,7 @@ export type AuthPrincipal = {
   id: string;
   scopes: string[];
   workspaceIds: string[];
+  projectIds: string[];
 };
 
 declare module "hono" {
@@ -68,6 +69,7 @@ export async function authMiddleware(c: Context, next: Next) {
       id: pat.userId,
       scopes: pat.scopes,
       workspaceIds: memberships.map((m) => m.workspaceId),
+      projectIds: [],
     });
     c.set("tokenId", pat.id);
     await checkRateLimit(c);
@@ -97,6 +99,7 @@ export async function authMiddleware(c: Context, next: Next) {
       id: agent.id,
       scopes: agent.scopes,
       workspaceIds: [agent.workspaceId],
+      projectIds: agent.projectIds ?? [],
     });
     c.set("tokenId", agent.id);
     await checkRateLimit(c);

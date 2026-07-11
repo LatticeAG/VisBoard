@@ -28,7 +28,7 @@ checklistRoutes.get("/", requireScope("read"), async (c) => {
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  const checklists = await listChecklists(db, wsSlug, projectSlug);
+  const checklists = await listChecklists(db, wsSlug, projectSlug, auth);
   return c.json({ data: checklists });
 });
 
@@ -60,8 +60,8 @@ checklistRoutes.get("/:id", requireScope("read"), async (c) => {
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  await getChecklist(db, wsSlug, projectSlug, checklistId);
-  const all = await listChecklists(db, wsSlug, projectSlug);
+  await getChecklist(db, wsSlug, projectSlug, checklistId, auth);
+  const all = await listChecklists(db, wsSlug, projectSlug, auth);
   const found = all.find((ch) => ch.id === checklistId);
   if (!found) {
     const { notFound } = await import("../lib/errors.js");

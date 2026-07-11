@@ -9,7 +9,7 @@ export class ProjectsResource {
   constructor(private readonly http: HttpClient) {}
 
   list(ws: string): Promise<Project[]> {
-    return this.http.request<Project[]>(`/workspaces/${ws}/projects`);
+    return this.http.requestList<Project>(`/workspaces/${ws}/projects`);
   }
 
   create(ws: string, input: CreateProjectInput): Promise<Project> {

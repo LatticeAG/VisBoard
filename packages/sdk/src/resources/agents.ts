@@ -9,8 +9,10 @@ import type {
 export class AgentsResource {
   constructor(private readonly http: HttpClient) {}
 
-  list(ws: string): Promise<Agent[]> {
-    return this.http.request<Agent[]>(`/workspaces/${ws}/agents`);
+  list(ws: string, params: { project?: string } = {}): Promise<Agent[]> {
+    const query: Record<string, string | undefined> = {};
+    if (params.project) query.project = params.project;
+    return this.http.requestList<Agent>(`/workspaces/${ws}/agents`, { query });
   }
 
   create(ws: string, input: CreateAgentInput): Promise<AgentWithToken> {

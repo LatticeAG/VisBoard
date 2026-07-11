@@ -22,11 +22,10 @@ export function assertWorkspaceAccess(
 export function assertAgentProjectAccess(
   auth: AuthPrincipal,
   projectId: string,
-  agentProjectIds: string[],
 ): void {
   if (auth.type !== "agent") return;
-  if (agentProjectIds.length === 0) return;
-  if (!agentProjectIds.includes(projectId)) {
+  if (auth.projectIds.length === 0) return;
+  if (!auth.projectIds.includes(projectId)) {
     throw forbidden("Agent does not have access to this project");
   }
 }

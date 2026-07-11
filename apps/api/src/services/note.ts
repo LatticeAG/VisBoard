@@ -1,6 +1,6 @@
 import { noteVersions, notes } from "@visboard/db";
 import { EventType, PREFIX, createId, slugify } from "@visboard/shared";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import matter from "gray-matter";
 import type { Database } from "@visboard/db";
 import type { AuthPrincipal } from "../auth/middleware.js";
@@ -38,8 +38,14 @@ export async function listNotes(
   db: Database["db"],
   workspaceSlug: string,
   projectSlug: string,
+  auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(
+    db,
+    workspaceSlug,
+    projectSlug,
+    auth,
+  );
   const rows = await db
     .select()
     .from(notes)
@@ -62,7 +68,7 @@ export async function createNote(
     frontmatter?: Record<string, unknown>;
   },
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
   const slug = input.slug ?? slugify(input.title);
   const { body, frontmatter } = parseNoteBody(input);
   const actor = actorFromAuth(auth);
@@ -124,16 +130,29 @@ export async function getNote(
   db: Database["db"],
   workspaceSlug: string,
   projectSlug: string,
-  noteId: string,
+  noteIdOrSlug: string,
+  auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(
+    db,
+    workspaceSlug,
+    projectSlug,
+    auth,
+  );
+
+  const idCondition = eq(notes.id, noteIdOrSlug);
+  const slugCondition = eq(notes.slug, noteIdOrSlug);
+  const identifierCondition = noteIdOrSlug.startsWith(`${PREFIX.note}_`)
+    ? idCondition
+    : or(idCondition, slugCondition);
+
   const [note] = await db
     .select()
     .from(notes)
     .where(
       and(
         eq(notes.projectId, project.id),
-        eq(notes.id, noteId),
+        identifierCondition,
         isNull(notes.deletedAt),
       ),
     )
@@ -141,7 +160,7 @@ export async function getNote(
 
   if (!note) {
     const { notFound } = await import("../lib/errors.js");
-    throw notFound(`Note '${noteId}' not found`);
+    throw notFound(`Note '${noteIdOrSlug}' not found`);
   }
 
   return note;
@@ -160,7 +179,7 @@ export async function updateNote(
   },
   ifMatch: number | null,
 ) {
-  const note = await getNote(db, workspaceSlug, projectSlug, noteId);
+  const note = await getNote(db, workspaceSlug, projectSlug, noteId, auth);
 
   if (ifMatch !== null && ifMatch !== note.version) {
     throw preconditionFailed(
@@ -227,7 +246,7 @@ export async function deleteNote(
   noteId: string,
   auth: AuthPrincipal,
 ) {
-  const note = await getNote(db, workspaceSlug, projectSlug, noteId);
+  const note = await getNote(db, workspaceSlug, projectSlug, noteId, auth);
   const now = new Date();
 
   await db
@@ -249,8 +268,9 @@ export async function listNoteVersions(
   workspaceSlug: string,
   projectSlug: string,
   noteId: string,
+  auth?: AuthPrincipal,
 ) {
-  await getNote(db, workspaceSlug, projectSlug, noteId);
+  await getNote(db, workspaceSlug, projectSlug, noteId, auth);
   const rows = await db
     .select()
     .from(noteVersions)
@@ -275,8 +295,9 @@ export async function getNoteVersion(
   projectSlug: string,
   noteId: string,
   version: number,
+  auth?: AuthPrincipal,
 ) {
-  await getNote(db, workspaceSlug, projectSlug, noteId);
+  await getNote(db, workspaceSlug, projectSlug, noteId, auth);
   const [row] = await db
     .select()
     .from(noteVersions)

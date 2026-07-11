@@ -29,7 +29,7 @@ describe("VisBoardClient", () => {
       expect(init?.headers).toMatchObject({
         Authorization: "Bearer vb_pat_test",
       });
-      return jsonResponse([{ id: "ws_1", slug: "acme", name: "Acme" }]);
+      return jsonResponse({ data: [{ id: "ws_1", slug: "acme", name: "Acme" }] });
     });
 
     const client = new VisBoardClient({
@@ -164,6 +164,28 @@ describe("VisBoardClient", () => {
 
     const client = new VisBoardClient({ baseUrl: BASE_URL, fetch });
     const result = await client.bootstrap.create({ name: "Smoke", slug: "smoke" });
+    expect(result.token).toBe("vb_pat_new");
+  });
+
+  it("bootstraps with X-Bootstrap-Token header", async () => {
+    const fetch = mockFetch((url, init) => {
+      expect(url).toBe(`${BASE_URL}/bootstrap`);
+      expect(init?.headers).toMatchObject({
+        "X-Bootstrap-Token": "secret-bootstrap",
+      });
+      return jsonResponse({
+        workspace: { id: "ws_1", slug: "smoke", name: "Smoke" },
+        user: { id: "user_1", display_name: "Admin" },
+        token: "vb_pat_new",
+      });
+    });
+
+    const client = new VisBoardClient({ baseUrl: BASE_URL, fetch });
+    const result = await client.bootstrap.create({
+      name: "Smoke",
+      slug: "smoke",
+      bootstrapToken: "secret-bootstrap",
+    });
     expect(result.token).toBe("vb_pat_new");
   });
 });

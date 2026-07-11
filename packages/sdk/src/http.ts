@@ -11,6 +11,14 @@ export interface RequestOptions {
   expectJson?: boolean;
 }
 
+export interface ListResponse<T> {
+  data: T[];
+  pagination?: {
+    next_cursor: string | null;
+    has_more: boolean;
+  };
+}
+
 export interface HttpClientConfig {
   baseUrl: string;
   token?: string;
@@ -91,6 +99,11 @@ export class HttpClient {
     }
 
     return (await response.text()) as unknown as T;
+  }
+
+  async requestList<T>(path: string, options: RequestOptions = {}): Promise<T[]> {
+    const response = await this.request<ListResponse<T>>(path, options);
+    return response.data;
   }
 
   async requestRaw(path: string, options: RequestOptions = {}): Promise<Response> {

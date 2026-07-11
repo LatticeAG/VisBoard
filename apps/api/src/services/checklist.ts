@@ -12,8 +12,14 @@ export async function listChecklists(
   db: Database["db"],
   workspaceSlug: string,
   projectSlug: string,
+  auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(
+    db,
+    workspaceSlug,
+    projectSlug,
+    auth,
+  );
   const rows = await db
     .select()
     .from(checklists)
@@ -39,7 +45,7 @@ export async function createChecklist(
   auth: AuthPrincipal,
   input: { title: string; source_note_id?: string },
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
   const now = new Date();
   const checklistId = createId(PREFIX.checklist);
 
@@ -71,8 +77,14 @@ export async function getChecklist(
   workspaceSlug: string,
   projectSlug: string,
   checklistId: string,
+  auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
+  const { project } = await getProjectBySlug(
+    db,
+    workspaceSlug,
+    projectSlug,
+    auth,
+  );
   const [chk] = await db
     .select()
     .from(checklists)
@@ -108,6 +120,7 @@ export async function updateChecklist(
     workspaceSlug,
     projectSlug,
     checklistId,
+    auth,
   );
   const now = new Date();
 
@@ -134,6 +147,7 @@ export async function deleteChecklist(
     workspaceSlug,
     projectSlug,
     checklistId,
+    _auth,
   );
   const now = new Date();
 
@@ -158,6 +172,7 @@ export async function addChecklistItem(
     workspaceSlug,
     projectSlug,
     checklistId,
+    auth,
   );
   const now = new Date();
   const itemId = createId(PREFIX.item);
@@ -184,12 +199,7 @@ export async function addChecklistItem(
 
   scheduleAgentsMdSync(checklist.projectId);
 
-  const allItems = await db
-    .select()
-    .from(checklistItems)
-    .where(eq(checklistItems.checklistId, checklistId));
-
-  return formatChecklist(checklist, allItems);
+  return formatChecklistItem(item!);
 }
 
 export async function updateChecklistItem(
@@ -213,6 +223,7 @@ export async function updateChecklistItem(
     workspaceSlug,
     projectSlug,
     checklistId,
+    auth,
   );
 
   const [existing] = await db
@@ -251,12 +262,29 @@ export async function updateChecklistItem(
 
   scheduleAgentsMdSync(checklist.projectId);
 
-  const allItems = await db
+  const [updated] = await db
     .select()
     .from(checklistItems)
-    .where(eq(checklistItems.checklistId, checklistId));
+    .where(eq(checklistItems.id, itemId))
+    .limit(1);
 
-  return formatChecklist(checklist, allItems);
+  return formatChecklistItem(updated!);
+}
+
+function formatChecklistItem(item: typeof checklistItems.$inferSelect) {
+  return {
+    id: item.id,
+    checklist_id: item.checklistId,
+    text: item.text,
+    done: item.done,
+    sort_order: item.sortOrder,
+    assignee_type: item.assigneeType,
+    assignee_id: item.assigneeId,
+    due_at: item.dueAt?.toISOString() ?? null,
+    blocked_by: item.blockedBy,
+    created_at: item.createdAt.toISOString(),
+    updated_at: item.updatedAt.toISOString(),
+  };
 }
 
 function formatChecklist(

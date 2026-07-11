@@ -1,0 +1,964 @@
+openapi: 3.1.0
+info:
+  title: VisBoard API
+  version: 0.1.0
+  description: |
+    VisBoard OSS API — shared workspace for agents and humans.
+    Base path `/v1`. Errors use RFC 7807 `application/problem+json`.
+servers:
+  - url: http://localhost:8080/v1
+    description: Local development
+tags:
+  - name: Health
+  - name: Bootstrap
+  - name: Workspaces
+  - name: Projects
+  - name: Notes
+  - name: Checklists
+  - name: Files
+  - name: Agents
+  - name: Events
+  - name: Context
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  version: { type: string, example: "0.1.0" }
+  /bootstrap:
+    post:
+      tags: [Bootstrap]
+      summary: Bootstrap first workspace and admin PAT
+      security: []
+      parameters:
+        - name: X-Bootstrap-Token
+          in: header
+          schema: { type: string }
+          description: Required when workspaces already exist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                slug: { type: string, pattern: "^[a-z0-9-]{3,48}$" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BootstrapResult"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces:
+    get:
+      tags: [Workspaces]
+      summary: List workspaces
+      responses:
+        "200":
+          description: Workspace list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceList"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [Workspaces]
+      summary: Create workspace
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkspace"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/import:
+    post:
+      tags: [Workspaces]
+      summary: Import workspace from export zip (creates new workspace)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, slug, name]
+              properties:
+                file: { type: string, format: binary }
+                slug: { type: string }
+                name: { type: string }
+      responses:
+        "201":
+          description: Imported
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ImportResult"
+                  - type: object
+                    properties:
+                      workspace:
+                        $ref: "#/components/schemas/Workspace"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+    get:
+      tags: [Workspaces]
+      summary: Get workspace
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      tags: [Workspaces]
+      summary: Update workspace
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateWorkspace"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workspace"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/export:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+    post:
+      tags: [Workspaces]
+      summary: Start workspace export
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportJob"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/exports/{id}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Workspaces]
+      summary: Download export zip
+      responses:
+        "200":
+          description: Zip file
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        "202":
+          description: Export pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportJob"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/import:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+    post:
+      tags: [Workspaces]
+      summary: Import data into existing workspace
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+          application/zip:
+            schema: { type: string, format: binary }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+    get:
+      tags: [Projects]
+      summary: List projects
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectList"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [Projects]
+      summary: Create project
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProject"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+    get:
+      tags: [Projects]
+      summary: Get project
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      tags: [Projects]
+      summary: Update project
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProject"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      tags: [Projects]
+      summary: Archive project
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}/notes:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+    get:
+      tags: [Notes]
+      summary: List notes
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteList"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [Notes]
+      summary: Create note
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNote"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}/notes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+        description: Note ID or slug
+    get:
+      tags: [Notes]
+      summary: Get note by ID or slug
+      responses:
+        "200":
+          headers:
+            ETag:
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        default:
+          $ref: "#/components/responses/Problem"
+    patch:
+      tags: [Notes]
+      summary: Update note
+      parameters:
+        - name: If-Match
+          in: header
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNote"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        "412":
+          $ref: "#/components/responses/Problem"
+        default:
+          $ref: "#/components/responses/Problem"
+    delete:
+      tags: [Notes]
+      summary: Delete note
+      responses:
+        "204":
+          description: Deleted
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}/notes/{id}/versions:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [Notes]
+      summary: List note versions
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/NoteVersion"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}/checklists:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+    get:
+      tags: [Checklists]
+      summary: List checklists
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChecklistList"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [Checklists]
+      summary: Create checklist
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateChecklist"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChecklistWithItems"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}/checklists/{id}/items:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [Checklists]
+      summary: Add checklist item
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateChecklistItem"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChecklistItem"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}/files:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+    get:
+      tags: [Files]
+      summary: List files
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FileRecord"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [Files]
+      summary: Upload file
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileRecord"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/agents:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+    get:
+      tags: [Agents]
+      summary: List agents
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Agent"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [Agents]
+      summary: Create agent
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAgent"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Agent"
+                  - type: object
+                    properties:
+                      token: { type: string }
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}/events:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+    get:
+      tags: [Events]
+      summary: List events (paginated)
+      parameters:
+        - name: since
+          in: query
+          schema: { type: string }
+        - name: types
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+        - name: cursor
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventList"
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [Events]
+      summary: Append event
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEvent"
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Event"
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}/events/stream:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+      - name: since
+        in: query
+        schema: { type: string }
+      - name: types
+        in: query
+        schema: { type: string }
+    get:
+      tags: [Events]
+      summary: SSE event stream
+      responses:
+        "200":
+          description: Server-Sent Events stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}/agents.md:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+    get:
+      tags: [Context]
+      summary: Get AGENTS.md
+      responses:
+        "200":
+          content:
+            text/markdown:
+              schema: { type: string }
+        default:
+          $ref: "#/components/responses/Problem"
+    post:
+      tags: [Context]
+      summary: Sync AGENTS.md
+      responses:
+        "200":
+          content:
+            text/markdown:
+              schema: { type: string }
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{ws}/projects/{p}/context:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceSlug"
+      - $ref: "#/components/parameters/ProjectSlug"
+      - name: include
+        in: query
+        schema:
+          type: string
+          enum: [headings, bodies]
+          default: headings
+    get:
+      tags: [Context]
+      summary: Get agent-optimized project context
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Context"
+        default:
+          $ref: "#/components/responses/Problem"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: PAT (`vb_pat_...`) or agent key (`vb_agent_...`)
+  parameters:
+    WorkspaceSlug:
+      name: ws
+      in: path
+      required: true
+      schema: { type: string }
+    ProjectSlug:
+      name: p
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    Problem:
+      description: RFC 7807 problem details
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+  schemas:
+    ProblemDetails:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+    Workspace:
+      type: object
+      properties:
+        id: { type: string, pattern: "^ws_" }
+        slug: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    WorkspaceList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Workspace"
+    CreateWorkspace:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        slug: { type: string }
+    UpdateWorkspace:
+      type: object
+      properties:
+        name: { type: string }
+    BootstrapResult:
+      type: object
+      properties:
+        workspace:
+          $ref: "#/components/schemas/Workspace"
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            display_name: { type: string }
+            email: { type: string, nullable: true }
+        token: { type: string }
+    ExportJob:
+      type: object
+      properties:
+        export_id: { type: string }
+        status: { type: string, enum: [pending, ready, failed] }
+    ImportResult:
+      type: object
+      properties:
+        projects_imported: { type: integer }
+        notes_imported: { type: integer }
+        checklists_imported: { type: integer }
+        files_imported: { type: integer }
+    Project:
+      type: object
+      properties:
+        id: { type: string, pattern: "^prj_" }
+        workspace_id: { type: string }
+        slug: { type: string }
+        name: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [draft, active, archived] }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ProjectList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Project"
+    CreateProject:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        slug: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [draft, active, archived] }
+    UpdateProject:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        status: { type: string, enum: [draft, active, archived] }
+    Note:
+      type: object
+      properties:
+        id: { type: string, pattern: "^nt_" }
+        project_id: { type: string }
+        slug: { type: string }
+        title: { type: string }
+        body: { type: string }
+        frontmatter: { type: object, additionalProperties: true }
+        is_system: { type: boolean }
+        system_key: { type: string, nullable: true }
+        version: { type: integer }
+        created_by_type: { type: string }
+        created_by_id: { type: string }
+        updated_by_type: { type: string }
+        updated_by_id: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    NoteList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Note"
+    CreateNote:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        slug: { type: string }
+        body: { type: string }
+        frontmatter: { type: object }
+    UpdateNote:
+      type: object
+      properties:
+        title: { type: string }
+        body: { type: string }
+        frontmatter: { type: object }
+    NoteVersion:
+      type: object
+      properties:
+        id: { type: string }
+        note_id: { type: string }
+        version: { type: integer }
+        title: { type: string }
+        body: { type: string }
+        frontmatter: { type: object }
+        created_at: { type: string, format: date-time }
+    ChecklistItem:
+      type: object
+      properties:
+        id: { type: string, pattern: "^item_" }
+        checklist_id: { type: string }
+        text: { type: string }
+        done: { type: boolean }
+        sort_order: { type: integer }
+        assignee_type: { type: string, nullable: true }
+        assignee_id: { type: string, nullable: true }
+        due_at: { type: string, format: date-time, nullable: true }
+        blocked_by: { type: array, items: { type: string } }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ChecklistWithItems:
+      type: object
+      properties:
+        id: { type: string, pattern: "^chk_" }
+        project_id: { type: string }
+        title: { type: string }
+        source_note_id: { type: string, nullable: true }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChecklistItem"
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ChecklistList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChecklistWithItems"
+    CreateChecklist:
+      type: object
+      required: [title]
+      properties:
+        title: { type: string }
+        source_note_id: { type: string }
+    CreateChecklistItem:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string }
+        sort_order: { type: integer }
+    FileRecord:
+      type: object
+      properties:
+        id: { type: string, pattern: "^file_" }
+        project_id: { type: string }
+        name: { type: string }
+        mime_type: { type: string }
+        size_bytes: { type: integer }
+        sha256: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+    Agent:
+      type: object
+      properties:
+        id: { type: string, pattern: "^agent_" }
+        workspace_id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        capabilities: { type: array, items: { type: string } }
+        scopes: { type: array, items: { type: string } }
+        project_ids: { type: array, items: { type: string } }
+        token_prefix: { type: string }
+        status: { type: string, enum: [active, revoked] }
+        created_at: { type: string, format: date-time }
+    CreateAgent:
+      type: object
+      required: [name, scopes]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        scopes: { type: array, items: { type: string } }
+        project_ids: { type: array, items: { type: string } }
+    Event:
+      type: object
+      properties:
+        id: { type: string, pattern: "^evt_" }
+        project_id: { type: string }
+        type: { type: string }
+        actor_type: { type: string, enum: [user, agent, system] }
+        actor_id: { type: string }
+        resource_type: { type: string, nullable: true }
+        resource_id: { type: string, nullable: true }
+        payload: { type: object, additionalProperties: true }
+        created_at: { type: string, format: date-time }
+    CreateEvent:
+      type: object
+      required: [type]
+      properties:
+        type: { type: string }
+        resource_type: { type: string }
+        resource_id: { type: string }
+        payload: { type: object }
+    EventList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        pagination:
+          type: object
+          properties:
+            next_cursor: { type: string, nullable: true }
+            has_more: { type: boolean }
+    Context:
+      type: object
+      properties:
+        project:
+          type: object
+          properties:
+            id: { type: string }
+            slug: { type: string }
+            name: { type: string }
+            description: { type: string }
+            status: { type: string }
+        agents_md: { type: string }
+        notes:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              slug: { type: string }
+              title: { type: string }
+              summary: { type: string }
+              body: { type: string }
+        checklists:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              title: { type: string }
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChecklistItem"
+        files:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              mime_type: { type: string }
+              size_bytes: { type: integer }
+        participants:
+          type: object
+          properties:
+            users: { type: array, items: { type: object } }
+            agents: { type: array, items: { type: object } }
+security:
+  - bearerAuth: []

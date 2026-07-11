@@ -22,7 +22,7 @@ export class FilesResource {
   }
 
   list(ws: string, project: string): Promise<FileRecord[]> {
-    return this.http.request<FileRecord[]>(
+    return this.http.requestList<FileRecord>(
       `/workspaces/${ws}/projects/${project}/files`,
     );
   }

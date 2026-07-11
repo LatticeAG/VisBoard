@@ -14,15 +14,7 @@ export function registerAgentCommands(program: Command): void {
       const globals = getGlobalOptions(this);
       const { client, workspace } = await createClient(globals);
       const ws = requireWorkspace(workspace);
-      let agents = await client.agents.list(ws);
-
-      if (opts.project) {
-        const project = await client.projects.get(ws, opts.project);
-        agents = agents.filter(
-          (a) =>
-            a.project_ids.length === 0 || a.project_ids.includes(project.id),
-        );
-      }
+      const agents = await client.agents.list(ws, { project: opts.project });
 
       if (globals.json) {
         outputData(agents, globals);
