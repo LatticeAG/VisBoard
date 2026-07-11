@@ -1,479 +1,1118 @@
-# VisBoard
+# VisBoard — OSS Implementation Spec
 
-**Status:** Spec-only  
+**Version:** 0.4 (OSS Phase 1 + Phase 2 features)  
+**Status:** Built — 8 packages, 34 tests passing  
 **Series:** Vis (interface / workspace)  
-**Pattern:** OSS CLI + SDK (MIT) + invite-only hosted SaaS  
-**License:** MIT (OSS repo); hosted backend terms governed by LatticeAG SaaS  
+**Owner:** LatticeAG  
+**License:** MIT  
 **Tagline:** A shared workspace where agents and humans plan, write, and ship together.
 
 ---
 
-## 1. Problem
+## 0. Scope Decision: OSS First
 
-Agentic workflows are becoming collaborative, but the tools we use to manage them are not. Today, a team running multiple agents ends up with:
+### What we are building now (Phase 1)
 
-- **Scattered context:** prompts, outputs, logs, and artifacts live in separate dashboards, chat threads, and local files.
-- **No shared ground truth:** humans and agents cannot point to the same task, note, or checklist in one place.
-- **Friction handoffs:** moving from agent output to human review, or from plan to execution, requires copy-paste across systems.
-- **Onboarding cost:** every new agent joining a project needs to reconstruct context from ad-hoc documents and conversation history.
+**Open-source, self-hosted VisBoard only.** No hosted SaaS, no billing, no invite system, no Clerk/Auth0 integration in this phase.
 
-Project-management tools are human-first. Agent frameworks are code-first. There is no lightweight, web-first workspace designed for both.
+| In scope (OSS — built) | Deferred |
+|---|---|
+| Monorepo + Docker Compose | Hosted multi-tenant SaaS |
+| Hono API server + SSE events | Vercel Fluid Compute deployment |
+| PostgreSQL + Drizzle | Neon managed hosting |
+| Local filesystem file storage | Vercel Blob / S3 production config |
+| Personal access tokens + agent API keys | OIDC/SSO (Clerk, WorkOS) |
+| CLI (`visboard`) + import/export | npm publish |
+| TypeScript SDK | — |
+| Next.js web UI (create flows, SSE) | Marketing site |
+| AGENTS.md generator | — |
+| MCP server (`@visboard/mcp`) | — |
+| OpenAPI spec | Playwright e2e |
+| Export/import zip roundtrip | Billing, invites |
 
----
+### Long-term business model (context only — not building now)
 
-## 2. Target Users
-
-| Segment | Role | Primary Need |
-|---|---|---|
-| **Agent engineers** | Build and operate autonomous agents | A structured context surface their agents can read and write via API |
-| **Product / ops teams** | Coordinate agent + human work | Shared project views, checklists, and progress tracking |
-| **Studio / agency teams** | Run client projects with AI collaborators | Branded workspaces with files, notes, and deliverables |
-| **LatticeAG internal teams** | Dogfood the Vis series | First production tenant; drives roadmap and integrations |
-
----
-
-## 3. Core Concepts
-
-### 3.1 Workspace
-
-A **Workspace** is the top-level container. It owns projects, members, billing, and integrations. Workspaces map to organizations or teams.
-
-### 3.2 Project
-
-A **Project** is a collaborative container inside a workspace. It contains notes, checklists, files, and an event stream. Projects have:
-
-- A slug, name, description, and status (`draft`, `active`, `archived`).
-- A list of participants (humans and agents).
-- An auto-generated `AGENTS.md` file that describes the project for any agent that joins.
-
-### 3.3 Note
-
-A **Note** is a markdown document. Notes support:
-
-- GitHub-flavored markdown.
-- Frontmatter (YAML) for metadata.
-- Embedded checklists (`- [ ]`).
-- Attachments referenced by ID.
-- Version history.
-
-### 3.4 Checklist
-
-A **Checklist** is a first-class entity extracted from or linked to a note. It provides:
-
-- Toggling state.
-- Assignees (human or agent).
-- Due dates.
-- Blocking relationships (`blocked_by`).
-
-### 3.5 File / Attachment
-
-Files can be uploaded to a project or attached to a note. Supported at MVP:
-
-- Text files, images, PDFs, JSON, YAML, markdown.
-- Max file size: 10 MB per file (hosted), configurable for self-hosted.
-- Files are referenced by a stable ID and can be fetched by agents via API.
-
-### 3.6 Agent
-
-An **Agent** is a participant with an API key and a role. Agents can:
-
-- Read project notes, checklists, and files.
-- Create and update notes and checklists.
-- Append events to the project stream.
-- Read `AGENTS.md` for self-onboarding.
-
-Agents are identified by a key + optional metadata (name, description, capabilities).
-
-### 3.7 Event Stream
-
-Every project has an append-only **Event Stream** recording creates, updates, comments, and agent actions. It is the audit log and the substrate for real-time updates.
-
-### 3.8 AGENTS.md
-
-Each project auto-generates and keeps synchronized an `AGENTS.md` file containing:
-
-- Project purpose and scope.
-- Directory of existing notes and their roles.
-- Active checklists and priorities.
-- Conventions, naming rules, and guardrails.
-- How to participate via the VisBoard Agent API.
-
-`AGENTS.md` is the single source of truth for any agent joining a project.
+**Hybrid** remains the north star: MIT OSS core + optional LatticeAG-hosted SaaS later. Phase 1 proves the agent-human loop on self-host before any hosted layer.
 
 ---
 
-## 4. Product Surface
+## 1. Problem & Product
 
-### 4.1 Web Application (hosted SaaS)
+Humans and agents need a **shared, structured, permissioned workspace** for plans, notes, checklists, and files — with an API agents treat as ground truth and a UI humans can trust.
 
-- **Dashboard:** workspace switcher, project list, recent activity.
-- **Project view:** three-pane layout (sidebar navigation, note/checklist editor, activity stream).
-- **Editor:** markdown editor with live preview, frontmatter editing, and checklist toggling.
-- **File manager:** upload, preview, copy reference links.
-- **Agent registry:** create keys, set scopes, view agent activity.
-- **Settings:** workspace members, billing, integrations, export.
-
-### 4.2 CLI (open-source)
-
-A local-first command-line interface for developers who prefer terminal workflows or need CI/CD integration.
-
-### 4.3 SDK (open-source)
-
-TypeScript SDK for building agents and integrations. REST API is documented and can be used directly from any language.
+**VisBoard is:** shared context board, `AGENTS.md` protocol, event stream, API-native.  
+**VisBoard is not:** Notion clone, agent runtime, chat UI, issue tracker.
 
 ---
 
-## 5. API Surface
+## 2. Phase 1 Success Criteria
 
-Base URL for hosted SaaS: `https://api.visboard.io/v1`  
-Base URL for self-hosted: configurable, default `/v1`
+Phase 1 is done when the **MVP smoke test** (§32) passes entirely via:
 
-All endpoints require an `Authorization: Bearer <token>` header. Tokens are either user session tokens or agent API keys.
+```bash
+docker compose up -d
+pnpm install && pnpm build
+pnpm --filter @visboard/api db:migrate
+pnpm --filter @visboard/cli dev auth bootstrap   # creates admin token
+# ... smoke test steps
+```
 
-### 5.1 Workspaces
+**Definition of done per package:**
 
-| Method | Path | Description |
+| Package | Done when |
+|---|---|
+| `@visboard/shared` | Zod schemas export; unit tests pass |
+| `@visboard/db` | Migrations apply cleanly; seed script works |
+| `@visboard/agents-md` | Generates canonical AGENTS.md from fixture data |
+| `@visboard/api` | All §10 endpoints return correct shapes; auth enforced |
+| `@visboard/sdk` | Typed client covers all endpoints |
+| `@visboard/cli` | All §11 commands work against local API |
+| `@visboard/web` | Dashboard + project 3-pane + editor renders |
+
+---
+
+## 3. Repository Layout (exact)
+
+```
+visboard/
+├── SPEC.md                          # This file
+├── LICENSE                          # MIT
+├── README.md
+├── package.json                     # pnpm workspace root
+├── pnpm-workspace.yaml
+├── turbo.json
+├── biome.json
+├── tsconfig.base.json
+├── .env.example
+├── docker-compose.yml
+├── .github/workflows/ci.yml
+│
+├── apps/
+│   ├── api/                         # Hono HTTP server
+│   │   ├── package.json             # name: @visboard/api
+│   │   ├── tsconfig.json
+│   │   ├── Dockerfile
+│   │   └── src/
+│   │       ├── index.ts             # entry: serve on PORT
+│   │       ├── app.ts               # Hono app + middleware
+│   │       ├── env.ts               # Zod-validated env
+│   │       ├── db.ts                # drizzle client singleton
+│   │       ├── auth/
+│   │       │   ├── middleware.ts    # Bearer token resolution
+│   │       │   ├── tokens.ts        # hash/verify PAT + agent keys
+│   │       │   └── scopes.ts        # scope checking helpers
+│   │       ├── routes/
+│   │       │   ├── health.ts
+│   │       │   ├── workspaces.ts
+│   │       │   ├── projects.ts
+│   │       │   ├── notes.ts
+│   │       │   ├── checklists.ts
+│   │       │   ├── files.ts
+│   │       │   ├── agents.ts
+│   │       │   ├── events.ts
+│   │       │   └── context.ts       # /context + /agents.md
+│   │       ├── services/
+│   │       │   ├── workspace.ts
+│   │       │   ├── project.ts
+│   │       │   ├── note.ts
+│   │       │   ├── checklist.ts
+│   │       │   ├── file.ts
+│   │       │   ├── agent.ts
+│   │       │   ├── event.ts
+│   │       │   ├── agents-md-sync.ts
+│   │       │   └── export.ts
+│   │       └── lib/
+│   │           ├── errors.ts        # RFC 7807 problem+json
+│   │           ├── pagination.ts
+│   │           ├── ids.ts             # prefixed ID generation
+│   │           └── storage.ts         # local FS adapter
+│   │
+│   └── web/                         # Next.js 15 App Router
+│       ├── package.json             # name: @visboard/web
+│       ├── next.config.ts
+│       ├── tailwind.config.ts
+│       └── src/
+│           ├── app/
+│           │   ├── layout.tsx
+│           │   ├── page.tsx           # redirect → /app
+│           │   ├── globals.css
+│           │   └── app/
+│           │       ├── layout.tsx     # app shell
+│           │       ├── page.tsx       # workspace picker
+│           │       └── [ws]/
+│           │           ├── page.tsx   # dashboard
+│           │           └── projects/[p]/
+│           │               └── page.tsx  # 3-pane project view
+│           ├── components/
+│           │   ├── sidebar.tsx
+│           │   ├── note-editor.tsx
+│           │   ├── markdown-preview.tsx
+│           │   ├── activity-stream.tsx
+│           │   ├── checklist-view.tsx
+│           │   └── file-list.tsx
+│           └── lib/
+│               ├── api-client.ts      # fetch wrapper using SDK
+│               └── auth.ts            # token from localStorage
+│
+├── packages/
+│   ├── shared/                      # @visboard/shared
+│   │   └── src/
+│   │       ├── index.ts
+│   │       ├── ids.ts               # prefix constants + validators
+│   │       ├── scopes.ts
+│   │       ├── events.ts            # event type enum
+│   │       └── schemas/             # Zod schemas per resource
+│   │           ├── workspace.ts
+│   │           ├── project.ts
+│   │           ├── note.ts
+│   │           ├── checklist.ts
+│   │           ├── file.ts
+│   │           ├── agent.ts
+│   │           ├── event.ts
+│   │           └── common.ts
+│   │
+│   ├── db/                          # @visboard/db
+│   │   └── src/
+│   │       ├── index.ts
+│   │       ├── client.ts
+│   │       ├── schema/
+│   │       │   ├── index.ts
+│   │       │   ├── workspaces.ts
+│   │       │   ├── users.ts
+│   │       │   ├── tokens.ts
+│   │       │   ├── projects.ts
+│   │       │   ├── notes.ts
+│   │       │   ├── checklists.ts
+│   │       │   ├── files.ts
+│   │       │   ├── agents.ts
+│   │       │   └── events.ts
+│   │       ├── migrations/          # drizzle-kit output
+│   │       └── seed.ts
+│   │
+│   ├── agents-md/                   # @visboard/agents-md
+│   │   └── src/
+│   │       ├── index.ts
+│   │       ├── generate.ts
+│   │       ├── parse-version.ts
+│   │       └── templates.ts
+│   │
+│   ├── sdk/                         # @visboard/sdk
+│   │   └── src/
+│   │       ├── index.ts
+│   │       ├── client.ts
+│   │       └── resources/
+│   │           ├── workspaces.ts
+│   │           ├── projects.ts
+│   │           ├── notes.ts
+│   │           ├── checklists.ts
+│   │           ├── files.ts
+│   │           ├── agents.ts
+│   │           ├── events.ts
+│   │           └── context.ts
+│   │
+│   └── cli/                         # @visboard/cli
+│       └── src/
+│           ├── index.ts             # commander entry
+│           ├── config.ts            # ~/.config/visboard/config.json
+│           ├── output.ts            # --json formatting
+│           └── commands/
+│               ├── auth.ts
+│               ├── workspace.ts
+│               ├── project.ts
+│               ├── note.ts
+│               ├── checklist.ts
+│               ├── file.ts
+│               ├── agent.ts
+│               ├── context.ts
+│               ├── export.ts
+│               └── doctor.ts
+│
+├── openapi/
+│   └── openapi.yaml                 # generated or hand-maintained
+│
+└── docs/
+    └── adr/
+        ├── 001-monorepo-pnpm-turborepo.md
+        ├── 002-drizzle-postgres.md
+        ├── 003-hono-api-server.md
+        ├── 004-oss-auth-pat-and-agent-keys.md
+        └── 005-local-filesystem-storage.md
+```
+
+---
+
+## 4. Technology Stack (locked for Phase 1)
+
+| Layer | Choice | Version guidance |
 |---|---|---|
-| `GET` | `/workspaces` | List workspaces for the caller |
-| `GET` | `/workspaces/{ws}` | Get workspace details |
-| `PATCH` | `/workspaces/{ws}` | Update workspace settings |
+| Runtime | Node.js | 22+ LTS |
+| Package manager | pnpm | 9.x |
+| Monorepo | Turborepo | 2.x |
+| Language | TypeScript | 5.7+, strict |
+| Linter/formatter | Biome | 1.9+ |
+| API framework | Hono | 4.x |
+| ORM | Drizzle ORM | latest |
+| DB | PostgreSQL | 16 |
+| Validation | Zod | 3.x |
+| IDs | `ulid` package | sortable, prefixed |
+| Web | Next.js App Router | 15.x |
+| CSS | Tailwind CSS | 4.x or 3.4 |
+| CLI | Commander.js | 12.x |
+| HTTP client (SDK) | native `fetch` | — |
+| Testing | Vitest | per package |
+| Containers | Docker Compose | v2 |
 
-### 5.2 Projects
+**Explicitly not used in Phase 1:** Clerk, Auth0, Vercel Blob, Redis, WebSockets, Prisma, tRPC.
 
-| Method | Path | Description |
+---
+
+## 5. Environment Variables
+
+### `.env.example` (root — used by docker-compose + local dev)
+
+```bash
+# Database
+DATABASE_URL=postgresql://visboard:visboard@localhost:5432/visboard
+
+# API
+PORT=8080
+API_BASE_URL=http://localhost:8080
+VISBOARD_DATA_DIR=./data          # file uploads root
+VISBOARD_TOKEN_PEPPER=change-me-in-production-min-32-chars
+
+# Web (Next.js)
+NEXT_PUBLIC_API_URL=http://localhost:8080/v1
+
+# Bootstrap (first run only)
+VISBOARD_BOOTSTRAP_TOKEN=         # optional; if set, enables POST /v1/bootstrap
+```
+
+### Docker Compose services
+
+```yaml
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: visboard
+      POSTGRES_PASSWORD: visboard
+      POSTGRES_DB: visboard
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U visboard"]
+      interval: 5s
+      retries: 5
+
+  api:
+    build: ./apps/api
+    ports: ["8080:8080"]
+    environment:
+      DATABASE_URL: postgresql://visboard:visboard@postgres:5432/visboard
+      VISBOARD_DATA_DIR: /data
+      VISBOARD_TOKEN_PEPPER: ${VISBOARD_TOKEN_PEPPER:-dev-pepper-change-me}
+    volumes: [uploads:/data]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  web:
+    build: ./apps/web
+    ports: ["3000:3000"]
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/v1
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  uploads:
+```
+
+---
+
+## 6. Database Schema (exact columns)
+
+All tables use `id` text PK with prefixed ULID. All timestamps `timestamptz` default `now()`.
+
+### `workspaces`
+
+| Column | Type | Notes |
 |---|---|---|
-| `GET` | `/workspaces/{ws}/projects` | List projects |
-| `POST` | `/workspaces/{ws}/projects` | Create project |
-| `GET` | `/workspaces/{ws}/projects/{p}` | Get project |
-| `PATCH` | `/workspaces/{ws}/projects/{p}` | Update project |
-| `DELETE` | `/workspaces/{ws}/projects/{p}` | Archive project |
-| `GET` | `/workspaces/{ws}/projects/{p}/agents.md` | Fetch generated AGENTS.md |
+| id | text PK | `ws_` prefix |
+| slug | text UNIQUE NOT NULL | lowercase, `[a-z0-9-]`, 3-48 chars |
+| name | text NOT NULL | display name |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+| deleted_at | timestamptz NULL | soft delete |
 
-### 5.3 Notes
+### `users`
 
-| Method | Path | Description |
+| Column | Type | Notes |
 |---|---|---|
-| `GET` | `/workspaces/{ws}/projects/{p}/notes` | List notes |
-| `POST` | `/workspaces/{ws}/projects/{p}/notes` | Create note |
-| `GET` | `/workspaces/{ws}/projects/{p}/notes/{id}` | Get note |
-| `PATCH` | `/workspaces/{ws}/projects/{p}/notes/{id}` | Update note |
-| `DELETE` | `/workspaces/{ws}/projects/{p}/notes/{id}` | Delete note |
+| id | text PK | `user_` prefix |
+| email | text UNIQUE NULL | optional for OSS MVP |
+| display_name | text NOT NULL | |
+| created_at | timestamptz | |
 
-### 5.4 Checklists
+### `workspace_members`
 
-| Method | Path | Description |
+| Column | Type | Notes |
 |---|---|---|
-| `GET` | `/workspaces/{ws}/projects/{p}/checklists` | List checklists |
-| `POST` | `/workspaces/{ws}/projects/{p}/checklists` | Create checklist |
-| `GET` | `/workspaces/{ws}/projects/{p}/checklists/{id}` | Get checklist |
-| `PATCH` | `/workspaces/{ws}/projects/{p}/checklists/{id}` | Update checklist item state |
-| `DELETE` | `/workspaces/{ws}/projects/{p}/checklists/{id}` | Delete checklist |
+| workspace_id | text FK → workspaces | composite PK |
+| user_id | text FK → users | composite PK |
+| role | text NOT NULL | `owner` \| `admin` \| `member` \| `guest` |
+| created_at | timestamptz | |
 
-### 5.5 Files
+### `personal_access_tokens`
 
-| Method | Path | Description |
+| Column | Type | Notes |
 |---|---|---|
-| `POST` | `/workspaces/{ws}/projects/{p}/files` | Upload file (multipart) |
-| `GET` | `/workspaces/{ws}/projects/{p}/files` | List files |
-| `GET` | `/workspaces/{ws}/projects/{p}/files/{id}` | Download file |
-| `DELETE` | `/workspaces/{ws}/projects/{p}/files/{id}` | Delete file |
+| id | text PK | `pat_` prefix |
+| user_id | text FK → users | |
+| name | text NOT NULL | e.g. "CLI laptop" |
+| token_hash | text NOT NULL | sha256(token + pepper) |
+| token_prefix | text NOT NULL | first 8 chars for identification |
+| scopes | text[] NOT NULL | default `["admin"]` for owner bootstrap |
+| expires_at | timestamptz NULL | |
+| revoked_at | timestamptz NULL | |
+| created_at | timestamptz | |
 
-### 5.6 Agent API
+**Token format:** `vb_pat_<32 random base62 chars>` — shown once on create.
 
-| Method | Path | Description |
+### `projects`
+
+| Column | Type | Notes |
 |---|---|---|
-| `GET` | `/workspaces/{ws}/projects/{p}/context` | Get full project context (notes, checklists, files, AGENTS.md) |
-| `POST` | `/workspaces/{ws}/projects/{p}/events` | Append an agent event |
-| `GET` | `/workspaces/{ws}/projects/{p}/events` | Stream or poll events |
-| `POST` | `/workspaces/{ws}/projects/{p}/notes` | Create or update note as agent |
-| `PATCH` | `/workspaces/{ws}/projects/{p}/checklists/{id}` | Toggle checklist item |
+| id | text PK | `prj_` |
+| workspace_id | text FK | indexed |
+| slug | text NOT NULL | unique per workspace |
+| name | text NOT NULL | |
+| description | text DEFAULT '' | |
+| status | text NOT NULL | `draft` \| `active` \| `archived` |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+| deleted_at | timestamptz NULL | |
 
-### 5.7 Common Resource Shape
+UNIQUE(workspace_id, slug)
 
-```json
-{
-  "id": "nt_...",
-  "slug": "product-spec",
-  "title": "Product Spec",
-  "body": "# Product Spec\n...",
-  "frontmatter": { "status": "draft", "owner": "agent-1" },
-  "created_at": "2026-07-11T00:00:00Z",
-  "updated_at": "2026-07-11T00:00:00Z",
-  "created_by": "user_...",
-  "updated_by": "agent_..."
+### `project_members`
+
+| Column | Type | Notes |
+|---|---|---|
+| project_id | text FK | composite PK |
+| principal_type | text | `user` \| `agent` |
+| principal_id | text | composite PK |
+| role | text | `editor` \| `viewer` |
+| created_at | timestamptz | |
+
+### `notes`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | `nt_` |
+| project_id | text FK | indexed |
+| slug | text NOT NULL | unique per project |
+| title | text NOT NULL | |
+| body | text NOT NULL DEFAULT '' | markdown |
+| frontmatter | jsonb NOT NULL DEFAULT '{}' | |
+| is_system | boolean DEFAULT false | true for AGENTS.md note |
+| system_key | text NULL | `agents.md` when system note |
+| version | integer NOT NULL DEFAULT 1 | bumped each update |
+| created_by_type | text | `user` \| `agent` \| `system` |
+| created_by_id | text | |
+| updated_by_type | text | |
+| updated_by_id | text | |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+| deleted_at | timestamptz NULL | |
+
+UNIQUE(project_id, slug) WHERE deleted_at IS NULL
+
+### `note_versions`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | `ntv_` |
+| note_id | text FK | |
+| version | integer | |
+| title | text | snapshot |
+| body | text | |
+| frontmatter | jsonb | |
+| created_by_type | text | |
+| created_by_id | text | |
+| created_at | timestamptz | |
+
+UNIQUE(note_id, version)
+
+### `checklists`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | `chk_` |
+| project_id | text FK | |
+| title | text NOT NULL | |
+| source_note_id | text FK NULL | if parsed from note |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+| deleted_at | timestamptz NULL | |
+
+### `checklist_items`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | `item_` |
+| checklist_id | text FK | |
+| text | text NOT NULL | |
+| done | boolean DEFAULT false | |
+| sort_order | integer NOT NULL | 0-based |
+| assignee_type | text NULL | `user` \| `agent` |
+| assignee_id | text NULL | |
+| due_at | timestamptz NULL | |
+| blocked_by | text[] DEFAULT '{}' | item IDs |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+### `files`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | `file_` |
+| project_id | text FK | |
+| name | text NOT NULL | original filename |
+| mime_type | text NOT NULL | |
+| size_bytes | bigint NOT NULL | |
+| storage_path | text NOT NULL | relative path under DATA_DIR |
+| sha256 | text NULL | optional Phase 1 |
+| created_by_type | text | |
+| created_by_id | text | |
+| created_at | timestamptz | |
+| deleted_at | timestamptz NULL | |
+
+### `agents`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | `agent_` |
+| workspace_id | text FK | |
+| name | text NOT NULL | |
+| description | text DEFAULT '' | |
+| capabilities | text[] DEFAULT '{}' | informational |
+| scopes | text[] NOT NULL | see §13 |
+| project_ids | text[] DEFAULT '{}' | empty = workspace-wide |
+| token_hash | text NOT NULL | |
+| token_prefix | text NOT NULL | |
+| status | text DEFAULT 'active' | `active` \| `revoked` |
+| last_seen_at | timestamptz NULL | |
+| created_by_id | text FK → users | |
+| created_at | timestamptz | |
+| revoked_at | timestamptz NULL | |
+
+**Token format:** `vb_agent_<32 random base62 chars>`
+
+### `events`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | text PK | `evt_` |
+| project_id | text FK | indexed |
+| type | text NOT NULL | see §7.8 |
+| actor_type | text NOT NULL | `user` \| `agent` \| `system` |
+| actor_id | text NOT NULL | |
+| resource_type | text NULL | |
+| resource_id | text NULL | |
+| payload | jsonb NOT NULL DEFAULT '{}' | |
+| created_at | timestamptz | indexed |
+
+Index: `(project_id, created_at)` for polling.
+
+---
+
+## 7. Core Concepts (implementation notes)
+
+### 7.1 ID generation
+
+```typescript
+// packages/shared/src/ids.ts
+export const PREFIX = {
+  workspace: 'ws',
+  project: 'prj',
+  note: 'nt',
+  checklist: 'chk',
+  item: 'item',
+  file: 'file',
+  agent: 'agent',
+  event: 'evt',
+  user: 'user',
+  pat: 'pat',
+} as const;
+
+export function createId(prefix: string): string {
+  return `${prefix}_${ulid()}`;
 }
 ```
 
-### 5.8 Real-Time Updates (post-MVP stretch)
+### 7.2 Auth model (OSS Phase 1)
 
-WebSocket or SSE stream for live collaboration. MVP uses polling on the event stream.
+Two credential types, same `Authorization: Bearer` header:
+
+1. **Personal Access Token (PAT)** — humans + CLI + web UI
+2. **Agent API Key** — autonomous agents
+
+Resolution order in middleware:
+1. Hash token with pepper
+2. Lookup `personal_access_tokens` where `token_hash` match and not revoked/expired
+3. Else lookup `agents` where `token_hash` match and `status = active`
+4. Else 401
+
+Attach to Hono context:
+```typescript
+type AuthContext = {
+  type: 'user' | 'agent';
+  id: string;
+  scopes: string[];
+  workspaceIds: string[];  // derived from memberships or agent.workspace_id
+};
+```
+
+### 7.3 Bootstrap flow (first install)
+
+`POST /v1/bootstrap` — only when **zero workspaces exist** OR `VISBOARD_BOOTSTRAP_TOKEN` env matches header `X-Bootstrap-Token`.
+
+Creates: workspace, owner user, PAT with admin scope. Returns token **once**.
+
+CLI: `visboard auth bootstrap --name "My Workspace"` calls this.
+
+### 7.4 AGENTS.md sync
+
+On these mutations, call `syncAgentsMd(projectId)` (debounced 500ms in-memory per project):
+- note create/update/delete
+- checklist/item changes
+- project update
+- agent create/revoke
+
+Implementation:
+1. Load project + notes (exclude deleted) + checklists + files + agents
+2. Call `@visboard/agents-md` `generate()`
+3. Upsert system note where `system_key = 'agents.md'`, `is_system = true`
+4. Emit `system.agents_md.synced` event
+
+### 7.5 Note frontmatter parsing
+
+Use `gray-matter` package:
+- Split YAML frontmatter from body on create/update
+- Validate frontmatter as `Record<string, unknown>` (no deep schema MVP)
+- Reserved keys: `status`, `owner`, `tags`, `visboard` (object)
+
+### 7.6 ETag / optimistic concurrency
+
+Notes return header `ETag: W/"<version>"`.  
+`PATCH` requires `If-Match` header; mismatch → `412 Precondition Failed`.
+
+### 7.7 Event types (enum)
+
+```typescript
+export const EventType = {
+  PROJECT_CREATED: 'project.created',
+  PROJECT_UPDATED: 'project.updated',
+  NOTE_CREATED: 'note.created',
+  NOTE_UPDATED: 'note.updated',
+  NOTE_DELETED: 'note.deleted',
+  CHECKLIST_CREATED: 'checklist.created',
+  CHECKLIST_ITEM_UPDATED: 'checklist.item.updated',
+  FILE_UPLOADED: 'file.uploaded',
+  FILE_DELETED: 'file.deleted',
+  AGENT_CREATED: 'agent.created',
+  AGENT_REVOKED: 'agent.revoked',
+  AGENT_TURN_COMPLETED: 'agent.turn.completed',
+  SYSTEM_AGENTS_MD_SYNCED: 'system.agents_md.synced',
+} as const;
+```
+
+### 7.8 Agent scopes
+
+| Scope | Grants |
+|---|---|
+| `read` | GET on notes, checklists, files, context, events, agents.md |
+| `write:notes` | POST/PATCH notes |
+| `write:checklists` | POST/PATCH checklists and items |
+| `write:files` | POST/DELETE files |
+| `write:events` | POST events |
+| `admin` | all of the above + agent management |
+
+Default new agent: `['read']`.  
+`admin` implies all scopes (checked in `scopes.ts`).
 
 ---
 
-## 6. CLI Commands
+## 8. API Specification
 
-The open-source CLI is named `visboard`. It is the primary interface for self-hosted deployments and developer workflows.
+**Base path:** `/v1`  
+**Content-Type:** `application/json` (except file upload: `multipart/form-data`)  
+**Errors:** RFC 7807 `application/problem+json`
 
-### 6.1 Authentication
+### 8.1 Error shape
 
-```bash
-visboard auth login          # Browser-based OAuth for hosted SaaS
-visboard auth status         # Show authenticated account
-visboard auth logout         # Clear credentials
-visboard auth use-key        # Use an agent API key directly
+```json
+{
+  "type": "https://visboard.dev/errors/not-found",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Project 'missing' not found in workspace 'acme'",
+  "instance": "/v1/workspaces/acme/projects/missing"
+}
 ```
 
-### 6.2 Workspace & Project
+### 8.2 Pagination
+
+Query: `?cursor=<evt_id>&limit=50` (default 50, max 100)  
+Response wrapper:
+
+```json
+{
+  "data": [...],
+  "pagination": { "next_cursor": "evt_...", "has_more": true }
+}
+```
+
+### 8.3 Endpoints (complete)
+
+#### Health
+- `GET /health` → `{ "status": "ok", "version": "0.1.0" }` (no auth)
+
+#### Bootstrap
+- `POST /v1/bootstrap` → `{ workspace, user, token }` (gated, see §7.3)
+
+#### Workspaces
+- `GET /v1/workspaces`
+- `POST /v1/workspaces` body: `{ name, slug? }`
+- `GET /v1/workspaces/:ws`
+- `PATCH /v1/workspaces/:ws` body: `{ name? }`
+- `POST /v1/workspaces/:ws/export` → `{ export_id, status: "pending" }`
+- `GET /v1/workspaces/:ws/exports/:id` → stream zip when ready
+
+#### Projects
+- `GET /v1/workspaces/:ws/projects`
+- `POST /v1/workspaces/:ws/projects` body: `{ name, slug?, description?, status? }`
+- `GET /v1/workspaces/:ws/projects/:p`
+- `PATCH /v1/workspaces/:ws/projects/:p`
+- `DELETE /v1/workspaces/:ws/projects/:p` → archives (status=archived)
+
+#### Notes
+- `GET /v1/workspaces/:ws/projects/:p/notes`
+- `POST` body: `{ title, slug?, body?, frontmatter? }`
+- `GET /v1/workspaces/:ws/projects/:p/notes/:id`
+- `PATCH` body: `{ title?, body?, frontmatter? }` + `If-Match`
+- `DELETE` → soft delete
+- `GET .../notes/:id/versions`
+- `GET .../notes/:id/versions/:version`
+
+#### Checklists
+- `GET/POST /v1/workspaces/:ws/projects/:p/checklists`
+- `GET/PATCH/DELETE .../checklists/:id`
+- `POST .../checklists/:id/items` body: `{ text, sort_order? }`
+- `PATCH .../checklists/:id/items/:item` body: `{ text?, done?, assignee_type?, assignee_id?, due_at?, blocked_by? }`
+
+#### Files
+- `POST .../files` multipart field `file`
+- `GET .../files`
+- `GET .../files/:id` → JSON metadata; `?download=1` → binary stream
+- `DELETE .../files/:id`
+
+#### Agents
+- `GET /v1/workspaces/:ws/agents`
+- `POST` body: `{ name, description?, scopes, project_ids? }` → includes `token` once
+- `PATCH /v1/workspaces/:ws/agents/:id`
+- `POST /v1/workspaces/:ws/agents/:id/revoke`
+
+#### Context (agent-optimized)
+- `GET /v1/workspaces/:ws/projects/:p/agents.md` → `text/markdown`
+- `POST /v1/workspaces/:ws/projects/:p/agents.md/sync`
+- `GET /v1/workspaces/:ws/projects/:p/context?include=headings|bodies` (default `headings`)
+
+**Context response shape:**
+
+```json
+{
+  "project": { "id", "slug", "name", "description", "status" },
+  "agents_md": "# AGENTS.md ...",
+  "notes": [{ "id", "slug", "title", "summary", "body?" }],
+  "checklists": [{ "id", "title", "items": [...] }],
+  "files": [{ "id", "name", "mime_type", "size_bytes" }],
+  "participants": { "users": [...], "agents": [...] }
+}
+```
+
+#### Events
+- `POST /v1/workspaces/:ws/projects/:p/events` body: `{ type, resource_type?, resource_id?, payload? }`
+- `GET /v1/workspaces/:ws/projects/:p/events?since=<iso|evt_id>&types=a,b&limit=50`
+
+### 8.4 Rate limiting (OSS)
+
+In-memory token bucket per token ID: 600 req/min. Return `429` + `Retry-After: 60`.  
+Configurable via `VISBOARD_RATE_LIMIT_RPM` env.
+
+---
+
+## 9. AGENTS.md Protocol v1
+
+```markdown
+<!-- visboard-agents-md:1 -->
+# AGENTS.md — {project_name}
+
+> Generated by VisBoard. Do not edit this file directly.
+> Human overrides: create note `agents.local.md` (appended below).
+
+## Purpose
+{description or "No description set."}
+
+## Status
+{status}
+
+## API
+- Base URL: {api_base}/v1
+- Workspace: `{ws_slug}`
+- Project: `{p_slug}`
+- Context endpoint: `GET .../context?include=headings`
+- Recommended scopes: `read`, `write:checklists`, `write:events`
+
+## Participants
+### Humans
+- {display_name} (`{user_id}`)
+
+### Agents
+- {name} (`{agent_id}`) scopes: {scopes}
+
+## Notes
+| Slug | Title | Summary |
+|------|-------|---------|
+| purpose | Purpose | First paragraph... |
+
+## Checklists
+### Launch (`chk_abc`)
+- [ ] Ship API (`item_xyz`) @agent:reviewer
+- [x] Write spec (`item_abc`)
+
+## Files
+| ID | Name | Type | Size |
+|----|------|------|------|
+
+## Local overrides
+{contents of agents.local.md note if exists, else "_None._"}
+```
+
+---
+
+## 10. CLI Specification
+
+**Binary name:** `visboard`  
+**Config file:** `~/.config/visboard/config.json`
+
+```json
+{
+  "endpoint": "http://localhost:8080/v1",
+  "token": "vb_pat_...",
+  "workspace": "acme"
+}
+```
+
+### Global flags
+- `--json` — machine-readable output
+- `--quiet` — errors only
+- `--endpoint <url>` — override config
+- `--workspace <slug>` — override config
+
+### Commands (all must work in Phase 1)
 
 ```bash
+# Auth
+visboard auth bootstrap --name "Acme" [--slug acme]
+visboard auth set-token <token>
+visboard auth status
+visboard auth logout
+
+# Workspace
 visboard workspace list
-visboard workspace create --name "Acme Agents"
+visboard workspace create --name "Acme" [--slug acme]
 visboard workspace switch <slug>
 
+# Project
 visboard project list
-visboard project create --name "Q3 Agent Pipeline" --slug q3-pipeline
+visboard project create --name "Pipeline" --slug pipeline [--description "..."]
 visboard project show <slug>
 visboard project archive <slug>
-```
 
-### 6.3 Notes
-
-```bash
+# Notes
 visboard note list --project <slug>
-visboard note create --project <slug> --title "Spec" --file ./spec.md
-visboard note edit --project <slug> <note-slug>           # Opens $EDITOR
+visboard note create --project <slug> --title "Spec" [--file ./spec.md] [--slug spec]
 visboard note view --project <slug> <note-slug>
+visboard note edit --project <slug> <note-slug>    # $EDITOR
 visboard note delete --project <slug> <note-slug>
-```
 
-### 6.4 Checklists
-
-```bash
+# Checklists
 visboard checklist list --project <slug>
-visboard checklist create --project <slug> --title "Launch tasks"
-visboard checklist check --project <slug> <checklist-id> <item-id>
-visboard checklist uncheck --project <slug> <checklist-id> <item-id>
-```
+visboard checklist create --project <slug> --title "Tasks"
+visboard checklist add --project <slug> <chk-id> --text "Do thing"
+visboard checklist check --project <slug> <chk-id> <item-id>
+visboard checklist uncheck --project <slug> <chk-id> <item-id>
 
-### 6.5 Files
-
-```bash
+# Files
 visboard file upload --project <slug> ./data.json
 visboard file list --project <slug>
-visboard file download --project <slug> <file-id> ./downloads/
+visboard file download --project <slug> <file-id> [--out ./dir]
 visboard file delete --project <slug> <file-id>
-```
 
-### 6.6 Agents
+# Agents
+visboard agent list [--project <slug>]
+visboard agent create --name "Reviewer" --scopes read,write:checklists,write:events [--project <slug>]
+visboard agent revoke <agent-id>
 
-```bash
-visboard agent list --project <slug>
-visboard agent create --project <slug> --name "Reviewer" --scope read,write-checklists
-visboard agent revoke --project <slug> <agent-id>
-```
+# Context
+visboard context --project <slug> [--include bodies] [--tokens]
+visboard agents-md --project <slug>
+visboard agents-md --project <slug> --sync
 
-### 6.7 Context
-
-```bash
-visboard context --project <slug>             # Print project context for an agent
-visboard agents-md --project <slug>           # Print generated AGENTS.md
-visboard agents-md --project <slug> --sync    # Regenerate AGENTS.md from current state
-```
-
-### 6.8 Local / Self-Hosted
-
-```bash
-visboard config set endpoint http://localhost:8080
-visboard config get endpoint
-visboard status                               # Check API health
+# Ops
+visboard export --workspace <slug> [--out ./export.zip]
+visboard doctor
+visboard config set endpoint <url>
+visboard config get [key]
 ```
 
 ---
 
-## 7. Security Model
+## 11. SDK Specification
 
-### 7.1 Identity & Authentication
+**Package:** `@visboard/sdk`
 
-- **Human users:** OAuth 2.0 / OIDC through the hosted SaaS. Self-hosted instances can configure any OIDC provider.
-- **Agents:** API keys (long-lived, revocable) scoped per workspace or per project.
-- **CLI:** Stores tokens in OS keychain or `$XDG_CONFIG_HOME/visboard/credentials`.
+```typescript
+import { VisBoardClient } from '@visboard/sdk';
 
-### 7.2 Authorization
+const client = new VisBoardClient({
+  baseUrl: 'http://localhost:8080/v1',
+  token: 'vb_pat_...',
+});
 
-Role-based access control (RBAC) with two dimensions:
+// Ergonomic API
+await client.workspaces.list();
+await client.projects.create('acme', { name: 'Pipeline', slug: 'pipeline' });
+await client.notes.create('acme', 'pipeline', { title: 'Spec', body: '# Spec' });
+await client.context.get('acme', 'pipeline', { include: 'headings' });
+await client.agentsMd.get('acme', 'pipeline');
+await client.events.append('acme', 'pipeline', {
+  type: 'agent.turn.completed',
+  payload: { summary: 'Checked item 1' },
+});
+```
 
-**Workspace roles:**
-- `owner` — full control, billing, deletion
-- `admin` — member management, settings
-- `member` — create and participate in projects
-- `guest` — access only explicitly shared projects
+All methods throw `VisBoardError` with `status`, `title`, `detail` from problem+json.
 
-**Project roles:**
-- `editor` — read/write notes, checklists, files
-- `viewer` — read-only
-- `agent:<scope>` — agent-specific permission set
+---
 
-### 7.3 Agent Scopes
+## 12. Web UI Specification (minimal)
 
-| Scope | Capability |
+### Pages
+1. `/` → redirect `/app`
+2. `/app` → workspace list + "bootstrap" hint if empty
+3. `/app/[ws]` → project cards + recent events sidebar
+4. `/app/[ws]/projects/[p]` → **3-pane layout**
+
+### 3-pane layout
+- **Left (240px):** Notes list, Checklists list, Files list (tabbed or sections)
+- **Center (flex):** Editor — split textarea + markdown preview; frontmatter as JSON textarea above
+- **Right (320px, collapsible):** Activity stream (poll events every 3s)
+
+### Auth in web (OSS)
+- Settings modal: paste PAT → stored in `localStorage` key `visboard_token`
+- No login page MVP — token paste is fine for OSS
+
+### Design tokens (recommendation)
+```css
+:root {
+  --bg: #0c0c0e;
+  --surface: #141418;
+  --border: #2a2a32;
+  --text: #e8e8ed;
+  --muted: #888894;
+  --accent: #5b8def;
+  --accent-dim: #3d5a9e;
+  --success: #4ade80;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+```
+
+Subtle grid background on app shell. No card-grid dashboards — use list rows.
+
+---
+
+## 13. Security (OSS Phase 1)
+
+- Tokens hashed with SHA-256 + server pepper; never store plaintext
+- Every DB query filters by `workspace_id` from auth context
+- Agents cannot call bootstrap, export, or revoke other agents without `admin`
+- File upload: reject `application/x-executable`, max 10MB (`VISBOARD_MAX_FILE_BYTES`)
+- Path traversal prevention: sanitize filenames; storage path = `{project_id}/{file_id}/{safe_name}`
+- CORS: `VISBOARD_CORS_ORIGIN` env (default `http://localhost:3000`)
+
+---
+
+## 14. Testing Requirements
+
+### Unit tests (Vitest)
+- `@visboard/shared` — schema validation edge cases
+- `@visboard/agents-md` — snapshot test against fixture project
+- `@visboard/api` — auth middleware, scope checks, ID generation
+
+### Integration tests (`apps/api`)
+- Use testcontainers postgres OR `DATABASE_URL` to test DB
+- Flow: bootstrap → create project → note → checklist → agent key → context
+
+### Smoke script
+`scripts/smoke.sh` runs CLI commands against docker-compose stack.
+
+---
+
+## 15. CI Pipeline
+
+```yaml
+# .github/workflows/ci.yml
+on: [push, pull_request]
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres: ...
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+```
+
+---
+
+## 16. Build Order (for parallel work)
+
+```
+Wave 1 (parallel):
+  ├── packages/shared
+  ├── packages/db (schema + migrations)
+  ├── packages/agents-md
+  └── root monorepo + docker-compose + ADRs
+
+Wave 2 (parallel, after Wave 1 types exist):
+  ├── apps/api
+  ├── packages/sdk
+  └── packages/cli
+
+Wave 3:
+  └── apps/web (depends on API + SDK)
+```
+
+---
+
+## 17. Non-Goals (Phase 1)
+
+- Hosted SaaS / multi-tenant cloud
+- OIDC / SSO / user registration UI
+- Real-time collaboration (SSE/WS)
+- MCP server
+- Comments UI
+- Billing
+- Mobile apps
+- WYSIWYG editor
+- Import from Notion
+- npm publish (use workspace packages)
+
+---
+
+## 18. Phase 2 — Completed (OSS)
+
+1. ✅ MCP server package (`@visboard/mcp`)
+2. ✅ SSE event stream (`GET .../events/stream`)
+3. ✅ `visboard import` + `POST .../import`
+4. ✅ OpenAPI spec (`openapi/openapi.yaml`)
+5. ✅ Real zip export with notes + files
+6. ✅ SDK list-response fixes, agent scoping, note slug lookup
+7. ✅ Web UI create flows, authenticated downloads, onboarding
+
+### Still deferred
+
+1. OIDC auth plugin
+2. GitHub Action for agent context sync
+3. Hosted SaaS layer (LatticeAG)
+4. npm publish `@visboard/cli`, `@visboard/sdk`
+5. Playwright e2e
+6. Comments UI
+
+---
+
+## 19. Decision Log
+
+| Date | Decision |
 |---|---|
-| `read` | Read notes, checklists, files, AGENTS.md |
-| `write:notes` | Create and update notes |
-| `write:checklists` | Create and toggle checklists |
-| `write:files` | Upload and delete files |
-| `write:events` | Append to event stream |
-| `admin` | Full project access |
-
-### 7.4 Data Safety
-
-- All data encrypted at rest (AES-256) and in transit (TLS 1.3).
-- File uploads scanned for malware in hosted SaaS.
-- Workspace export available at any time (JSON + attachments zip).
-- Audit log retained for the lifetime of the workspace.
+| 2026-07-11 | Product: VisBoard |
+| 2026-07-11 | Long-term: Hybrid; **Phase 1: OSS only** |
+| 2026-07-11 | MIT license |
+| 2026-07-11 | Monorepo: pnpm + Turborepo |
+| 2026-07-11 | API: Hono standalone in `apps/api` |
+| 2026-07-11 | ORM: Drizzle + Postgres 16 |
+| 2026-07-11 | Auth: PAT + agent keys (no OIDC in Phase 1) |
+| 2026-07-11 | Storage: local filesystem |
+| 2026-07-11 | IDs: prefixed ULIDs |
+| 2026-07-11 | Phase 2 OSS: MCP, SSE, import, OpenAPI, web polish | Full feature build |
 
 ---
 
-## 8. Deployment Model
+## 20. MVP Smoke Test
 
-### 8.1 Hosted SaaS (invite-only)
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+ENDPOINT=http://localhost:8080/v1
 
-LatticeAG operates the hosted backend at `https://visboard.io`.
+# 1. Bootstrap
+TOKEN=$(visboard auth bootstrap --name "Smoke Test" --slug smoke --json | jq -r .token)
+visboard auth set-token "$TOKEN"
 
-- **Availability target:** 99.9% uptime.
-- **Regions:** start with US-East; expand based on demand.
-- **Tenancy:** workspace-scoped data isolation in a multi-tenant architecture.
-- **Backups:** daily point-in-time recovery with 30-day retention.
-- **Invites:** workspace creation is invite-only; public signup is disabled.
+# 2. Create project
+visboard project create --name "Demo" --slug demo
 
-### 8.2 Self-Hosted (OSS)
+# 3. Create note
+visboard note create --project demo --title "Purpose" --slug purpose --body "# Purpose\nShip VisBoard."
 
-The server is open-sourced under MIT and can be self-hosted.
+# 4. Create checklist + items
+CHK=$(visboard checklist create --project demo --title "Launch" --json | jq -r .id)
+ITEM=$(visboard checklist add --project demo "$CHK" --text "Item 1" --json | jq -r .id)
 
-- **Runtime:** Node.js or container image.
-- **Database:** PostgreSQL 15+.
-- **Object storage:** S3-compatible (optional; local filesystem for small installs).
-- **Authentication:** OIDC provider required.
-- **No telemetry by default.** Optional anonymous usage stats, opt-in.
+# 5. Create agent
+AGENT_TOKEN=$(visboard agent create --name "Bot" --scopes read,write:checklists,write:events --project demo --json | jq -r .token)
 
-### 8.3 CLI / SDK Distribution
+# 6. Agent reads context
+visboard auth set-token "$AGENT_TOKEN"
+visboard agents-md --project demo | grep -q "AGENTS.md"
+visboard context --project demo --json | jq -e '.project.slug == "demo"'
 
-- CLI binaries distributed via GitHub Releases and npm (`@latticeag/visboard`).
-- SDK published as `@latticeag/visboard-sdk` on npm.
-- Rust or Python SDKs considered after TypeScript SDK stabilizes.
+# 7. Agent checks item
+visboard checklist check --project demo "$CHK" "$ITEM"
+visboard auth set-token "$TOKEN"  # back to human
 
----
+# 8. Human sees event in activity
+visboard context --project demo --json | jq -e '.checklists[0].items[0].done == true'
 
-## 9. Six-Day MVP Milestones
+# 9. Upload file
+echo '{"ok":true}' > /tmp/smoke.json
+visboard file upload --project demo /tmp/smoke.json
 
-### Day 1 — Foundation
+# 10. Export
+visboard export --workspace smoke --out /tmp/smoke-export.zip
+test -f /tmp/smoke-export.zip
 
-- [ ] Finalize SPEC.md and create private GitHub repo.
-- [ ] Bootstrap server repo structure (no feature code, just conventions).
-- [ ] Choose ORM + migration framework; commit ADR.
-- [ ] Set up CI skeleton (lint, typecheck, test placeholder).
-
-### Day 2 — Workspace & Project
-
-- [ ] Database schema for workspaces, projects, members.
-- [ ] REST endpoints: workspace CRUD, project CRUD.
-- [ ] JWT / session auth for human users.
-- [ ] CLI: `auth`, `workspace`, `project` commands.
-
-### Day 3 — Notes & Markdown
-
-- [ ] Note CRUD endpoints with frontmatter parsing.
-- [ ] Markdown editor in web app (basic textarea + preview).
-- [ ] CLI: `note` commands.
-- [ ] Version history table (one snapshot per update).
-
-### Day 4 — Checklists & Files
-
-- [ ] Checklist entity and endpoints.
-- [ ] Inline checklist parsing from markdown notes.
-- [ ] File upload / download endpoints (local storage for MVP).
-- [ ] CLI: `checklist` and `file` commands.
-
-### Day 5 — Agent API & AGENTS.md
-
-- [ ] Agent API key model and scopes.
-- [ ] `/context` endpoint returning project snapshot.
-- [ ] AGENTS.md generation and sync endpoint.
-- [ ] CLI: `agent`, `context`, `agents-md` commands.
-
-### Day 6 — Web Shell & Polish
-
-- [ ] Minimal web UI covering dashboard, project view, editor, file list.
-- [ ] End-to-end smoke test: human creates project → agent reads context → agent updates checklist.
-- [ ] README, API docs stub, and repo hygiene.
-- [ ] Tag `v0.1.0-mvp` and deploy private SaaS preview.
+echo "SMOKE TEST PASSED"
+```
 
 ---
 
-## 10. Pricing & Positioning
-
-### 10.1 Positioning
-
-VisBoard is the **shared context layer** for agent-human teams. It sits between general-purpose project management and agent framework logs, giving both sides a single place to coordinate.
-
-- **For agent engineers:** a structured surface their agents can read and write.
-- **For operators:** visibility into what agents are doing without losing human control.
-- **Differentiator:** first-class agent participants, auto-generated `AGENTS.md`, and API-native design.
-
-### 10.2 Pricing (hosted SaaS)
-
-| Tier | Price | Includes |
-|---|---|---|
-| **Open Source** | Free | Self-hosted; unlimited users, projects, and agents (community support) |
-| **Starter** | Free (invite-only) | 1 workspace, 3 projects, 5 agents, 1 GB storage |
-| **Team** | $29 / seat / month | Unlimited projects, 50 agents, 100 GB storage, SSO, priority support |
-| **Enterprise** | Custom | SLA, dedicated infra, audit exports, custom integrations |
-
-Invite-only launch starts with Starter; Team billing added post-MVP.
-
-### 10.3 OSS / SaaS Split
-
-- **Open-source (MIT):** server, CLI, SDK, API specification.
-- **Hosted (invite-only):** managed infrastructure, real-time sync, SSO, audit exports, and support.
-
-Speed of iteration and managed integrations are the hosted moat; trust and extensibility come from open source.
-
----
-
-## 11. Non-Goals (MVP)
-
-To keep the MVP focused, the following are explicitly out of scope for the first six days:
-
-- Real-time collaborative editing (use polling / event stream).
-- Rich text / WYSIWYG editor.
-- Mobile apps.
-- Advanced permissions (e.g., row-level note ACLs).
-- Marketplace or third-party plugins.
-- Billing / subscription machinery.
-- Public-facing project pages.
-
----
-
-## 12. Success Metrics
-
-| Metric | Target (90 days post-MVP) |
-|---|---|
-| Private beta workspaces | 20 |
-| Projects created per workspace (median) | 3 |
-| Agent API calls per week | 1,000 |
-| Notes with AGENTS.md referenced | 80% of active projects |
-| NPS from beta users | > 40 |
-
----
-
-## 13. Open Questions
-
-1. Should the hosted SaaS use Cloudflare Workers or a traditional Node.js server for the MVP?
-2. Which OIDC provider(s) should be supported at launch for self-hosted installs?
-3. Should file storage support Git LFS-style deduplication, or simple per-file blobs for MVP?
-4. What is the migration path for users who later want to move from hosted to self-hosted?
-
----
-
-## 14. License
-
-Open-source components are released under the MIT License. The hosted service is subject to separate LatticeAG Terms of Service.
+*SPEC v0.3 — OSS Phase 1 implementation spec. SaaS deferred.*
