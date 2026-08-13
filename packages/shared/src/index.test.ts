@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  BLOCK_TYPE_REGISTRY,
+  BUILT_IN_TEMPLATES,
+  createBoardBlockSchema,
   createPrefixedId,
   createWorkspaceSchema,
   hasScope,
@@ -18,6 +21,12 @@ describe("ids", () => {
   it("rejects invalid workspace IDs", () => {
     expect(isValidId("ws_bad", "workspace")).toBe(false);
     expect(isValidId("prj_01ARZ3NDEKTSV4RRFFQ69G5FAV", "workspace")).toBe(false);
+  });
+
+  it("creates and validates V3 board IDs", () => {
+    const id = createPrefixedId("board");
+    expect(id.startsWith("brd_")).toBe(true);
+    expect(isValidId(id, "board")).toBe(true);
   });
 });
 
@@ -54,5 +63,41 @@ describe("scopes", () => {
 
   it("does not grant write without explicit scope", () => {
     expect(hasScope([Scope.READ], Scope.WRITE_NOTES)).toBe(false);
+  });
+});
+
+describe("V3 block registry and templates", () => {
+  it("publishes rich core block definitions", () => {
+    for (const type of [
+      "core.kanban",
+      "core.mermaid",
+      "core.code",
+      "core.embed",
+      "core.dashboard",
+    ] as const) {
+      expect(BLOCK_TYPE_REGISTRY[type]).toBeDefined();
+    }
+  });
+
+  it("validates a rich block payload and preserves collaborative source", () => {
+    const parsed = createBoardBlockSchema.parse({
+      type: "core.mermaid",
+      content: { source: "graph TD\\nA --> B" },
+      attributes: { accessibility_description: "A flows to B" },
+    });
+    expect(parsed.schema_version).toBe(1);
+    expect(parsed.content.source).toContain("graph TD");
+  });
+
+  it("ships reusable built-in working protocols", () => {
+    expect(BUILT_IN_TEMPLATES.map((template) => template.slug)).toEqual([
+      "sprint-planning",
+      "incident-response",
+      "pr-review",
+      "research",
+    ]);
+    for (const template of BUILT_IN_TEMPLATES) {
+      expect(template.manifest.blocks.length).toBeGreaterThan(0);
+    }
   });
 });

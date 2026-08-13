@@ -12,6 +12,13 @@ import { fileRoutes } from "./routes/files.js";
 import { agentRoutes } from "./routes/agents.js";
 import { eventRoutes } from "./routes/events.js";
 import { contextRoutes } from "./routes/context.js";
+import { boardRoutes } from "./routes/boards.js";
+import { templateRoutes } from "./routes/templates.js";
+import { blockTypeRoutes } from "./routes/block-types.js";
+import { agentWorkflowRoutes } from "./routes/agent-workflows.js";
+import { automationRoutes } from "./routes/automations.js";
+import { integrationRoutes } from "./routes/integrations.js";
+import { interchangeRoutes } from "./routes/interchange.js";
 
 export function createApp() {
   const env = getEnv();
@@ -21,7 +28,15 @@ export function createApp() {
     "*",
     cors({
       origin: env.VISBOARD_CORS_ORIGIN,
-      allowHeaders: ["Authorization", "Content-Type", "If-Match", "X-Bootstrap-Token"],
+      allowHeaders: [
+        "Authorization",
+        "Content-Type",
+        "If-Match",
+        "If-Board-Revision",
+        "If-Board-Document",
+        "Idempotency-Key",
+        "X-Bootstrap-Token",
+      ],
       exposeHeaders: ["ETag", "Retry-After"],
     }),
   );
@@ -51,6 +66,16 @@ export function createApp() {
   v1.route("/workspaces/:ws/projects/:p", contextRoutes);
 
   app.route("/v1", v1);
+
+  const v2 = new Hono();
+  v2.route("/workspaces/:workspace/boards", boardRoutes);
+  v2.route("/workspaces/:workspace/boards", interchangeRoutes);
+  v2.route("/workspaces/:workspace/boards", agentWorkflowRoutes);
+  v2.route("/templates", templateRoutes);
+  v2.route("/block-types", blockTypeRoutes);
+  v2.route("/", integrationRoutes);
+  v2.route("/", automationRoutes);
+  app.route("/v2", v2);
 
   return app;
 }

@@ -7,3 +7,12 @@ dist
 .env.local
 data
 uploads
+
+# internal artifacts - IP protected, never shipped
+*SPEC*.md
+*REVIEW*.md
+*prompt*.md
+*ROADMAP*.md
+*WHAT-NEXT*.md
+*HANDOFF*.md
+*PROD*.md

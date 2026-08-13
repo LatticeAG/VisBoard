@@ -15,6 +15,15 @@ const EXPECTED_TABLES = [
   "files",
   "agents",
   "events",
+  "boards",
+  "boardDocuments",
+  "boardBlocks",
+  "boardRevisions",
+  "boardEvents",
+  "boardTemplates",
+  "templateVersions",
+  "templateInstallations",
+  "templateBlockMappings",
 ] as const;
 
 describe("schema exports", () => {
