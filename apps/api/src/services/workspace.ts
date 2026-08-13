@@ -159,6 +159,17 @@ export async function getWorkspaceBySlug(db: Database["db"], slug: string) {
   return row;
 }
 
+/** V2 routes use canonical workspace IDs rather than ambiguous slugs. */
+export async function getWorkspaceById(db: Database["db"], workspaceId: string) {
+  const [row] = await db
+    .select()
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+  if (!row || row.deletedAt) return null;
+  return row;
+}
+
 export async function updateWorkspace(
   db: Database["db"],
   workspaceId: string,

@@ -7,3 +7,4 @@ export * from "./checklists";
 export * from "./files";
 export * from "./agents";
 export * from "./events";
+export * from "./boards";

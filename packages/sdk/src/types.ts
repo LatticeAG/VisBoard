@@ -136,4 +136,84 @@ export interface BootstrapInput {
   bootstrapToken?: string;
 }
 
-import type { Project, Workspace } from "@visboard/shared";
+import type {
+  Board,
+  BoardBlock,
+  BoardCommand,
+  BoardDocument,
+  BoardRevision,
+  BoardTemplate,
+  CreateBoardInput,
+  CreateTemplateInput,
+  CreateTemplateVersionInput,
+  Project,
+  TemplateManifest,
+  TemplateVersion,
+  UpdateBoardInput,
+  Workspace,
+} from "@visboard/shared";
+
+export type {
+  Board,
+  BoardBlock,
+  BoardCommand,
+  BoardDocument,
+  BoardRevision,
+  BoardTemplate,
+  CreateBoardInput,
+  TemplateManifest,
+  TemplateVersion,
+  UpdateBoardInput,
+};
+
+/** Input-friendly command shape. Zod supplies defaults for omitted envelopes. */
+export type BoardCommandInput = Omit<BoardCommand, "target" | "payload" | "expected"> & {
+  target?: { block_id?: string };
+  payload?: Record<string, unknown>;
+  expected?: { revision_id?: string; document_id?: string };
+};
+
+export interface BoardState {
+  board: Board;
+  document: BoardDocument;
+  blocks: BoardBlock[];
+  head_revision: BoardRevision | null;
+}
+
+export interface BoardDiff {
+  from_revision_id: string;
+  to_revision_id: string;
+  added: BoardBlock[];
+  removed: BoardBlock[];
+  changed: Array<{
+    block_id: string;
+    fields: string[];
+    before: BoardBlock;
+    after: BoardBlock;
+  }>;
+  summary?: string;
+}
+
+export interface BoardCommandReceipt {
+  status: "applied" | "awaiting_approval" | "conflicted" | "rejected" | "pending";
+  board?: Board;
+  block?: BoardBlock;
+  revision?: BoardRevision;
+  event?: { id: string; type: string };
+  problem?: { code?: string; detail?: string };
+}
+
+export interface CreateBoardRevisionInput {
+  label?: string;
+  summary?: string;
+}
+
+export interface RestoreBoardInput {
+  revision_id: string;
+  expected_document_id?: string;
+  reason: string;
+}
+
+/** Legacy-friendly aliases with explicit V3 template semantics. */
+export type CreateBoardTemplateInput = CreateTemplateInput;
+export type PublishTemplateVersionInput = CreateTemplateVersionInput;

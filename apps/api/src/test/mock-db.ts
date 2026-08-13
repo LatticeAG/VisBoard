@@ -16,6 +16,15 @@ export type InMemoryStore = {
   files: Array<Record<string, unknown>>;
   agents: Array<Record<string, unknown>>;
   events: Array<Record<string, unknown>>;
+  boards: Array<Record<string, unknown>>;
+  board_documents: Array<Record<string, unknown>>;
+  board_blocks: Array<Record<string, unknown>>;
+  board_revisions: Array<Record<string, unknown>>;
+  board_events: Array<Record<string, unknown>>;
+  board_templates: Array<Record<string, unknown>>;
+  template_versions: Array<Record<string, unknown>>;
+  template_installations: Array<Record<string, unknown>>;
+  template_block_mappings: Array<Record<string, unknown>>;
 };
 
 export function createEmptyStore(): InMemoryStore {
@@ -33,6 +42,15 @@ export function createEmptyStore(): InMemoryStore {
     files: [],
     agents: [],
     events: [],
+    boards: [],
+    board_documents: [],
+    board_blocks: [],
+    board_revisions: [],
+    board_events: [],
+    board_templates: [],
+    template_versions: [],
+    template_installations: [],
+    template_block_mappings: [],
   };
 }
 

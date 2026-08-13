@@ -7,6 +7,7 @@ export default defineConfig({
       "@visboard/db": path.resolve(__dirname, "../../packages/db/src/index.ts"),
       "@visboard/shared": path.resolve(__dirname, "../../packages/shared/src/index.ts"),
       "@visboard/agents-md": path.resolve(__dirname, "../../packages/agents-md/src/index.ts"),
+      "@visboard/agent-sdk": path.resolve(__dirname, "../../packages/agent-sdk/src/index.ts"),
     },
     extensions: [".ts", ".tsx", ".js", ".mjs", ".json"],
   },

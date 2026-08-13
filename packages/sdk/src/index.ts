@@ -2,5 +2,8 @@ export { VisBoardClient } from "./client.js";
 export type { VisBoardClientConfig } from "./client.js";
 export { VisBoardError } from "./error.js";
 export type { ProblemDetails } from "./error.js";
+export type { HttpMethod, RequestOptions } from "./http.js";
 export type { UploadFileInput } from "./resources/files.js";
+export { BoardsResource, type BoardMutationOptions } from "./resources/boards.js";
+export { TemplatesResource } from "./resources/templates.js";
 export * from "./types.js";

@@ -210,3 +210,71 @@ describe("VisBoardError", () => {
     expect(error.detail).toBe("Insufficient scope");
   });
 });
+
+describe("V2 board resources", () => {
+  it("uses canonical board routes and forwards command preconditions", async () => {
+    const fetch = mockFetch((url, init) => {
+      expect(url).toBe(
+        "http://localhost:8080/v2/workspaces/ws_01/boards/brd_01/commands",
+      );
+      expect(init?.headers).toMatchObject({
+        Authorization: "Bearer t",
+        "Idempotency-Key": "cmd-retry-key",
+        "If-Board-Revision": "rev_01",
+        "If-Board-Document": "bdoc_01",
+      });
+      expect(JSON.parse(init?.body as string)).toMatchObject({
+        command_id: "cmd_01",
+        kind: "block.create",
+      });
+      return jsonResponse({ status: "applied" });
+    });
+
+    const client = new VisBoardClient({
+      baseUrl: "http://localhost:8080/v2",
+      token: "t",
+      fetch,
+    });
+    const receipt = await client.boards.command(
+      "ws_01",
+      "brd_01",
+      { command_id: "cmd_01", kind: "block.create" },
+      {
+        idempotencyKey: "cmd-retry-key",
+        expectedRevisionId: "rev_01",
+        expectedDocumentId: "bdoc_01",
+      },
+    );
+
+    expect(receipt.status).toBe("applied");
+  });
+
+  it("installs a published template version on a board", async () => {
+    const fetch = mockFetch((url, init) => {
+      expect(url).toBe(
+        "http://localhost:8080/v2/workspaces/ws_01/boards/brd_01/template-installations",
+      );
+      expect(JSON.parse(init?.body as string)).toEqual({
+        template_version_id: "tplv_01",
+        variables: { repository: "visboard" },
+      });
+      return jsonResponse({
+        installation: { id: "tpli_01" },
+        blocks: [],
+        revision: { id: "rev_01" },
+      });
+    });
+
+    const client = new VisBoardClient({
+      baseUrl: "http://localhost:8080/v2",
+      token: "t",
+      fetch,
+    });
+    const result = await client.boards.installTemplate("ws_01", "brd_01", {
+      template_version_id: "tplv_01",
+      variables: { repository: "visboard" },
+    });
+
+    expect(result.revision.id).toBe("rev_01");
+  });
+});
