@@ -10,6 +10,8 @@ function apiConnectOrigin(): string {
   }
 }
 
+const isDev = process.env.NODE_ENV !== "production";
+
 const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname, "../.."),
@@ -25,7 +27,10 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               `connect-src 'self' ${connect}`,
-              "script-src 'self'",
+              // Next.js ships an inline RSC bootstrap script, so hydration
+              // breaks under script-src 'self' alone. Dev also needs
+              // 'unsafe-eval' for the React dev runtime.
+              `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data:",
               "font-src 'self'",
