@@ -56,8 +56,12 @@ jobs:
       - run: pnpm --filter @visboard/db db:migrate
 
       - run: pnpm test
+        env:
+          NODE_ENV: production
 
       - run: pnpm build
+        env:
+          NODE_ENV: production
 
       - name: Install Playwright Chromium
         run: pnpm --filter @visboard/web exec playwright install --with-deps chromium
