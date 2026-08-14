@@ -746,11 +746,84 @@ export class AutomationEngine {
   }
 }
 
+export interface NotifyExecutorOptions {
+  /** Delivery hook for the notification; defaults to a structured platform log. */
+  deliver?: (notification: {
+    action: AutomationAction;
+    rule_id: string;
+    event_id: string;
+    event_type: string;
+    idempotency_key: string;
+  }) => Promise<Record<string, unknown> | undefined>;
+  /** Overrides the injected clock (used for deterministic tests). */
+  now?: () => Date;
+}
+
+/**
+ * Base platform notification action. Delivers through the injected hook
+ * (console log by default) so 'notify' automations always have a working
+ * executor without external infrastructure.
+ */
+export function createNotifyExecutor(options: NotifyExecutorOptions = {}): AutomationActionExecutor {
+  const deliver =
+    options.deliver ??
+    (async (notification) => {
+      console.log("automation.notify:", JSON.stringify(notification));
+      return undefined;
+    });
+  const now = options.now ?? (() => new Date());
+  return async ({ action, rule, run, event, idempotencyKey }) => {
+    const result = await deliver({
+      action: clone(action),
+      rule_id: rule.id,
+      event_id: event.id,
+      event_type: event.type,
+      idempotency_key: idempotencyKey,
+    });
+    return { delivered: true, delivered_at: now().toISOString(), ...result, run_id: run.id };
+  };
+}
+
+export interface DefaultExecutorOptions {
+  fetch?: typeof fetch;
+  /** Allow-listed webhook destinations; required to enable the webhook executor. */
+  webhookAllowedHosts?: readonly string[];
+  resolveSecret?: (reference: string) => Promise<string | undefined>;
+  allowHttp?: boolean;
+  notify?: NotifyExecutorOptions;
+}
+
+/**
+ * Executors the platform can always provide. 'notify' is always available;
+ * 'webhook' is wired only when an allow-list is configured so SSRF surface
+ * stays opt-in.
+ */
+export function createDefaultExecutors(
+  options: DefaultExecutorOptions = {},
+): Partial<Record<AutomationActionType, AutomationActionExecutor>> {
+  const executors: Partial<Record<AutomationActionType, AutomationActionExecutor>> = {
+    notify: createNotifyExecutor(options.notify),
+  };
+  if (options.webhookAllowedHosts && options.webhookAllowedHosts.length > 0) {
+    executors.webhook = createSignedWebhookExecutor({
+      fetch: options.fetch,
+      allowedHosts: options.webhookAllowedHosts,
+      resolveSecret: options.resolveSecret,
+      allowHttp: options.allowHttp,
+    });
+  }
+  return executors;
+}
+
 export async function loadAutomationEngineFromDb(
   db: Store,
   options: AutomationEngineOptions = {},
 ): Promise<AutomationEngine> {
-  const engine = new AutomationEngine({ ...options, db });
+  const engine = new AutomationEngine({
+    ...options,
+    executors: { ...createDefaultExecutors(), ...options.executors },
+    db,
+  });
   try {
     const rows = await db.select().from(automationRules);
     for (const row of rows) {

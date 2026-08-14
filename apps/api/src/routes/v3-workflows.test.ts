@@ -369,6 +369,17 @@ describe("mounted V3 board automation dispatch", () => {
     expect(runs.status).toBe(200);
     const body = await runs.json();
     expect(body.data).toHaveLength(1);
-    expect(body.data[0]).toMatchObject({ board_id: board.id, state: "failed" });
+    expect(body.data[0]).toMatchObject({ board_id: board.id, state: "succeeded" });
+  });
+
+  it("agent-runs with malformed JSON return 400", async () => {
+    const { app, board } = await createBoard();
+    const start = await app.request(`/v2/workspaces/${workspaceId}/boards/${board.id}/agent-runs`, {
+      method: "POST",
+      headers: headers({ "Content-Type": "application/json" }),
+      body: "{not valid json",
+    });
+    expect(start.status).toBe(400);
+    expect((await start.json()).status).toBe(400);
   });
 });

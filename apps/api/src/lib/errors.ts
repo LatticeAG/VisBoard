@@ -94,3 +94,43 @@ export function serviceUnavailable(detail = "Database is not ready"): ApiError {
 export function notImplemented(detail: string): ApiError {
   return new ApiError(501, "Not Implemented", detail);
 }
+
+/**
+ * True when the error is a PostgreSQL foreign key violation (SQLSTATE 23503).
+ * Checked structurally because pg, drizzle, and tx wrappers surface different
+ * error classes.
+ */
+export function isForeignKeyViolation(error: unknown): boolean {
+  let current: unknown = error;
+  const seen = new Set<unknown>();
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    if ((current as { code?: unknown }).code === "23503") return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+/**
+ * Best-effort entity name behind a failed FK reference, e.g. 'agent' from
+ * 'agent_runs_agent_id_fkey'. Used only to name the offending entity in a 4xx.
+ */
+export function foreignKeyReferenceDetail(error: unknown): string | null {
+  const constraint =
+    error && typeof error === "object"
+      ? ((error as { constraint_name?: unknown }).constraint_name ??
+        (error as { constraint?: unknown }).constraint)
+      : undefined;
+  if (typeof constraint === "string") {
+    // Constraint digests look like 'agent_runs_agent_id_fkey' where the part
+    // before the final '..._id_fkey' suffix names the referenced entity.
+    const parts = constraint.split("_");
+    for (let index = parts.length - 1; index >= 0; index -= 1) {
+      if (parts[index] === "id" && index > 0) {
+        const entity = parts[index - 1];
+        if (entity) return entity;
+      }
+    }
+  }
+  return null;
+}

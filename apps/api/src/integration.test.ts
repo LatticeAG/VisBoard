@@ -412,6 +412,39 @@ describe("note slug lookup", () => {
     expect(body.slug).toBe("purpose");
     expect(body.title).toBe("Purpose");
   });
+
+  it("PATCH note by slug updates the resolved note row", async () => {
+    const token = "vb_pat_testtoken123456789012345678901";
+    const app = createApp();
+    const res = await app.request("/v1/workspaces/smoke/projects/demo/notes/purpose", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "If-Match": 'W/"1"',
+      },
+      body: JSON.stringify({ title: "Purpose v2" }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.id).toBe("nt_abc123");
+    expect(body.title).toBe("Purpose v2");
+    expect(body.version).toBe(2);
+  });
+
+  it("DELETE note by slug deletes the resolved note row", async () => {
+    const token = "vb_pat_testtoken123456789012345678901";
+    const app = createApp();
+    const res = await app.request("/v1/workspaces/smoke/projects/demo/notes/purpose", {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    // Pre-fix this was a 500 ("Failed to update note") because the DELETE
+    // targeted WHERE id = '<slug>' which never matches.
+    expect(res.status).toBe(204);
+  });
 });
 
 describe("agent project scoping", () => {

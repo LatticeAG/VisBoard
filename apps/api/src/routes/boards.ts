@@ -9,6 +9,7 @@ import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
 import { badRequest, notFound } from "../lib/errors.js";
 import { actorFromAuth, assertWorkspaceAccess } from "../lib/helpers.js";
+import { readJsonBody } from "../lib/json.js";
 import {
   captureBoardRevision,
   createBoard,
@@ -102,7 +103,7 @@ boardRoutes.get("/", requireScope("read", "admin"), async (c) => {
 
 boardRoutes.post("/", requireScope("admin"), async (c) => {
   const { auth, db, workspaceId } = await requireV2Workspace(c);
-  const input = parseJson(createBoardSchema.safeParse(await c.req.json()));
+  const input = parseJson(createBoardSchema.safeParse(await readJsonBody(c)));
   const result = await createBoard(db, workspaceId, auth, input);
   if (input.template_version_id) {
     const installed = await installTemplate(db, workspaceId, result.board.id, auth, {
@@ -136,7 +137,7 @@ boardRoutes.post(
     const { auth, db, workspaceId } = await requireV2Workspace(c);
     const boardId = c.req.param("board");
     if (!boardId) throw badRequest("Missing board path parameter");
-    const command = parseJson(boardCommandSchema.safeParse(await c.req.json()));
+    const command = parseJson(boardCommandSchema.safeParse(await readJsonBody(c)));
     const preconditions = requestPreconditions(c);
     command.expected = {
       ...command.expected,
@@ -238,7 +239,7 @@ boardRoutes.post("/:board/restore", requireScope("admin"), async (c) => {
   const { auth, db, workspaceId } = await requireV2Workspace(c);
   const boardId = c.req.param("board");
   if (!boardId) throw badRequest("Missing board path parameter");
-  const body = (await c.req.json()) as {
+  const body = (await readJsonBody(c)) as {
     revision_id?: unknown;
     expected_document_id?: unknown;
     reason?: unknown;

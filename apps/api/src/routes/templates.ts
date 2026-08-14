@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
 import { badRequest } from "../lib/errors.js";
+import { readJsonBody } from "../lib/json.js";
 import {
   createTemplate,
   createTemplateVersion,
@@ -30,7 +31,7 @@ templateRoutes.get("/", requireScope("read", "admin"), async (c) => {
 templateRoutes.post("/", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
   const { db } = getDb();
-  const input = parseJson(createTemplateSchema.safeParse(await c.req.json()));
+  const input = parseJson(createTemplateSchema.safeParse(await readJsonBody(c)));
   return c.json(await createTemplate(db, auth, input), 201);
 });
 
@@ -39,7 +40,7 @@ templateRoutes.post("/:template/versions", requireScope("admin"), async (c) => {
   const templateId = c.req.param("template");
   if (!templateId) throw badRequest("Missing template path parameter");
   const { db } = getDb();
-  const input = parseJson(createTemplateVersionSchema.safeParse(await c.req.json()));
+  const input = parseJson(createTemplateVersionSchema.safeParse(await readJsonBody(c)));
   return c.json(await createTemplateVersion(db, auth, templateId, input), 201);
 });
 

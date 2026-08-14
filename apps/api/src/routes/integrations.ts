@@ -5,6 +5,7 @@ import { getDb, isPersistableDb } from "../db.js";
 import { getEnv } from "../env.js";
 import { badRequest, forbidden, notFound, unauthorized } from "../lib/errors.js";
 import { assertWorkspaceAccess } from "../lib/helpers.js";
+import { readJsonBody } from "../lib/json.js";
 import { resolveSecretsKey } from "../lib/secrets.js";
 import { executeBoardCommand, getBoard, getBoardState } from "../services/board.js";
 import { SyncEngine } from "../services/sync.js";
@@ -299,7 +300,7 @@ authenticatedIntegrationRoutes.post(
   requireScope("admin"),
   async (c) => {
     const { db, workspaceId } = await requireWorkspace(c);
-    const body = asRecord(await c.req.json());
+    const body = asRecord(await readJsonBody(c));
     const engine = getIntegrationSyncEngine(db);
     const webhookSecret = asString(body.webhook_secret);
     const connection = engine.createConnection(parseBody(body, workspaceId), webhookSecret);
@@ -322,7 +323,7 @@ authenticatedIntegrationRoutes.post(
   requireScope("admin"),
   async (c) => {
     const { db, workspaceId, boardId } = await requireBoard(c);
-    const body = asRecord(await c.req.json());
+    const body = asRecord(await readJsonBody(c));
     const parsed = createSyncLinkSchema.safeParse({
       id: asString(body.id),
       connection_id: body.connection_id,

@@ -197,13 +197,13 @@ export async function updateNote(
       updatedById: actor.actorId,
       updatedAt: now,
     })
-    .where(eq(notes.id, noteId))
+    .where(eq(notes.id, note.id))
     .returning();
   if (!updated) throw new Error("Failed to update note");
 
   await db.insert(noteVersions).values({
     id: createId(PREFIX.noteVersion),
-    noteId,
+    noteId: note.id,
     version: newVersion,
     title: updated.title,
     body: updated.body,
@@ -216,7 +216,7 @@ export async function updateNote(
   await createEvent(db, note.projectId, auth, {
     type: EventType.NOTE_UPDATED,
     resource_type: "note",
-    resource_id: noteId,
+    resource_id: note.id,
   });
 
   scheduleAgentsMdSync(note.projectId);
@@ -234,12 +234,12 @@ export async function deleteNote(
   const note = await getNote(db, workspaceSlug, projectSlug, noteId, auth);
   const now = new Date();
 
-  await db.update(notes).set({ deletedAt: now, updatedAt: now }).where(eq(notes.id, noteId));
+  await db.update(notes).set({ deletedAt: now, updatedAt: now }).where(eq(notes.id, note.id));
 
   await createEvent(db, note.projectId, auth, {
     type: EventType.NOTE_DELETED,
     resource_type: "note",
-    resource_id: noteId,
+    resource_id: note.id,
   });
 
   scheduleAgentsMdSync(note.projectId);

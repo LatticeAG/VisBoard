@@ -192,6 +192,45 @@ describe("automation route factory", () => {
       headers: authHeaders(),
     });
     expect(approve.status).toBe(200);
-    expect((await approve.json()).actions[0].state).toBe("failed");
+    // The platform wires a default notify executor, so an approved action now succeeds.
+    expect((await approve.json()).actions[0].state).toBe("succeeded");
+  });
+
+  it("executes notify actions through the wired default executor", async () => {
+    const app = appWith(automationRoutes);
+    const create = await app.request(`/v2/workspaces/${workspaceId}/automation-rules`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        name: "Instant notify",
+        enabled: true,
+        trigger: { event_types: ["kanban.card.transitioned"] },
+        actions: [{ id: "notify", type: "notify" }],
+      }),
+    });
+    expect(create.status).toBe(201);
+
+    const [run] = await getAutomationEngine().processEvent({
+      id: "evt_notify",
+      type: "kanban.card.transitioned",
+      workspace_id: workspaceId,
+      source: "human",
+      payload: {},
+      created_at: "2026-07-21T12:00:00.000Z",
+    });
+    expect(run?.state).toBe("succeeded");
+    expect(run?.actions[0]?.state).toBe("succeeded");
+    expect(run?.actions[0]?.error ?? null).toBeNull();
+  });
+
+  it("returns 400 for malformed JSON bodies instead of 500", async () => {
+    const app = createApp();
+    const response = await app.request(`/v2/workspaces/${workspaceId}/automation-rules`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: "{not valid json",
+    });
+    expect(response.status).toBe(400);
+    expect((await response.json()).status).toBe(400);
   });
 });

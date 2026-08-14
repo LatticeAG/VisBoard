@@ -23,6 +23,7 @@ import {
   preconditionFailed,
 } from "../lib/errors.js";
 import { assertWorkspaceAccess } from "../lib/helpers.js";
+import { readJsonBody, rethrowAsNotFoundIfForeignKey } from "../lib/json.js";
 import { getBoard } from "../services/board.js";
 import { getWorkspaceById } from "../services/workspace.js";
 
@@ -183,6 +184,7 @@ async function runAgentOperation<T>(operation: () => Promise<T>): Promise<T> {
     if (error instanceof AgentLeaseError || error instanceof HandoffStateError) {
       throw conflict(message);
     }
+    rethrowAsNotFoundIfForeignKey(error);
     throw error;
   }
 }
@@ -229,7 +231,7 @@ agentWorkflowRoutes.post(
   requireScope("write:notes", "write:files", "admin"),
   async (c) => {
     const { auth, boardId } = await requireV2Board(c);
-    const body = readBody(await c.req.json());
+    const body = readBody(await readJsonBody(c));
     const agentId = requiredString(body.agent_id, "agent_id");
     assertAgentIdentity(auth, agentId);
     const run = await runAgentOperation(() =>
@@ -269,7 +271,7 @@ agentWorkflowRoutes.post(
   requireScope("write:notes", "write:files", "admin"),
   async (c) => {
     const { boardId } = await requireV2Board(c);
-    const body = readBody(await c.req.json());
+    const body = readBody(await readJsonBody(c));
     return c.json(
       await runAgentOperation(() =>
         transport.heartbeat({ board_id: boardId, access: accessFrom(body.access) }),
@@ -283,7 +285,7 @@ agentWorkflowRoutes.post(
   requireScope("write:notes", "write:files", "admin"),
   async (c) => {
     const { boardId } = await requireV2Board(c);
-    const body = readBody(await c.req.json());
+    const body = readBody(await readJsonBody(c));
     return c.json(
       await runAgentOperation(() =>
         transport.renewLease({
@@ -305,7 +307,7 @@ function runFinishRoute(
     requireScope("write:notes", "write:files", "admin"),
     async (c) => {
       const { boardId } = await requireV2Board(c);
-      const body = readBody(await c.req.json());
+      const body = readBody(await readJsonBody(c));
       const access = accessFrom(body.access);
       if (operation === "cancelRun") {
         return c.json(
@@ -333,7 +335,7 @@ agentWorkflowRoutes.post(
   requireScope("write:files", "admin"),
   async (c) => {
     const { auth, boardId } = await requireV2Board(c);
-    const body = readBody(await c.req.json());
+    const body = readBody(await readJsonBody(c));
     const agentId = requiredString(body.agent_id, "agent_id");
     assertAgentIdentity(auth, agentId);
     return c.json(
@@ -402,7 +404,7 @@ agentWorkflowRoutes.put(
   requireScope("write:notes", "write:files", "admin"),
   async (c) => {
     const { boardId } = await requireV2Board(c);
-    const body = readBody(await c.req.json());
+    const body = readBody(await readJsonBody(c));
     return c.json(
       await runAgentOperation(() =>
         transport.updateScratchpad({
@@ -440,7 +442,7 @@ agentWorkflowRoutes.put(
   requireScope("write:files", "admin"),
   async (c) => {
     const { boardId } = await requireV2Board(c);
-    const body = readBody(await c.req.json());
+    const body = readBody(await readJsonBody(c));
     if (body.generated !== undefined && typeof body.generated !== "boolean") {
       throw badRequest("generated must be a boolean");
     }
@@ -465,7 +467,7 @@ agentWorkflowRoutes.delete(
   requireScope("write:files", "admin"),
   async (c) => {
     const { boardId } = await requireV2Board(c);
-    const body = readBody(await c.req.json());
+    const body = readBody(await readJsonBody(c));
     await runAgentOperation(() =>
       transport.deleteFile({
         board_id: boardId,
@@ -511,7 +513,7 @@ agentWorkflowRoutes.get("/:board/handoffs", requireScope("read", "admin"), async
 
 agentWorkflowRoutes.post("/:board/handoffs", requireScope("write:notes", "admin"), async (c) => {
   const { boardId } = await requireV2Board(c);
-  const body = readBody(await c.req.json());
+  const body = readBody(await readJsonBody(c));
   if (!isRecord(body.packet)) throw badRequest("packet is required");
   return c.json(
     await runAgentOperation(() =>
@@ -580,7 +582,7 @@ agentWorkflowRoutes.post(
   requireScope("write:notes", "admin"),
   async (c) => {
     const { boardId } = await requireV2Board(c);
-    const body = readBody(await c.req.json());
+    const body = readBody(await readJsonBody(c));
     return c.json(
       await runAgentOperation(() =>
         transport.submitHandoff({
@@ -613,7 +615,7 @@ agentWorkflowRoutes.post(
   async (c) => {
     const { auth, boardId } = await requireV2Board(c);
     requireHumanReviewer(auth);
-    const body = readBody(await c.req.json());
+    const body = readBody(await readJsonBody(c));
     if (body.conditions !== undefined && !isRecord(body.conditions)) {
       throw badRequest("conditions must be an object");
     }
@@ -637,7 +639,7 @@ agentWorkflowRoutes.post(
   requireScope("write:notes", "write:files", "admin"),
   async (c) => {
     const { auth, boardId } = await requireV2Board(c);
-    const body = readBody(await c.req.json());
+    const body = readBody(await readJsonBody(c));
     const agentId = requiredString(body.agent_id, "agent_id");
     assertAgentIdentity(auth, agentId);
     return c.json(

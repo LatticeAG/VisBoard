@@ -5,7 +5,8 @@ import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb, isPersistableDb } from "../db.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
 import { assertWorkspaceAccess } from "../lib/helpers.js";
-import { AutomationEngine } from "../services/automation.js";
+import { readJsonBody } from "../lib/json.js";
+import { AutomationEngine, createDefaultExecutors } from "../services/automation.js";
 import { getBoard } from "../services/board.js";
 import { getWorkspaceById } from "../services/workspace.js";
 
@@ -24,14 +25,14 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-let memoryEngine = new AutomationEngine();
+let memoryEngine = new AutomationEngine({ executors: createDefaultExecutors() });
 const persistableEngines = new WeakMap<object, AutomationEngine>();
 
 export function getAutomationEngine(db?: Store): AutomationEngine {
   if (db && isPersistableDb(db)) {
     let engine = persistableEngines.get(db);
     if (!engine) {
-      engine = new AutomationEngine({ db });
+      engine = new AutomationEngine({ db, executors: createDefaultExecutors() });
       persistableEngines.set(db, engine);
     }
     return engine;
@@ -48,7 +49,7 @@ export function setAutomationEngine(engine: AutomationEngine): void {
 
 /** Used by board/event wiring and route tests to create a clean reference worker. */
 export function resetAutomationRoutesForTests(): void {
-  memoryEngine = new AutomationEngine();
+  memoryEngine = new AutomationEngine({ executors: createDefaultExecutors() });
 }
 
 async function requireWorkspace(c: Context) {
@@ -122,7 +123,7 @@ automationRoutes.post(
     const { db, workspaceId } = await requireWorkspace(c);
     const engine = getAutomationEngine(db);
     const rule = engine.createRule(
-      await parseRuleForWorkspace(c, workspaceId, asRecord(await c.req.json())),
+      await parseRuleForWorkspace(c, workspaceId, asRecord(await readJsonBody(c))),
     );
     await engine.flush();
     return c.json(rule, 201);
@@ -141,7 +142,7 @@ automationRoutes.patch(
     if (!current || current.workspace_id !== workspaceId) {
       throw notFound(`Automation rule '${ruleId}' not found`);
     }
-    const body = asRecord(await c.req.json());
+    const body = asRecord(await readJsonBody(c));
     const updated = engine.updateRule(ruleId, {
       ...(body.name === undefined ? {} : { name: body.name as string }),
       ...(body.enabled === undefined ? {} : { enabled: body.enabled as boolean }),
