@@ -13,10 +13,13 @@ async function reset() {
   }
 
   const { client } = createDbFromEnv(databaseUrl);
-  await client.unsafe("DROP SCHEMA public CASCADE");
+  // public: application tables. drizzle: drizzle-kit's __drizzle_migrations
+  // bookkeeping. Both must go or migrate sees "already applied" and skips.
+  await client.unsafe("DROP SCHEMA IF EXISTS public CASCADE");
   await client.unsafe("CREATE SCHEMA public");
+  await client.unsafe("DROP SCHEMA IF EXISTS drizzle CASCADE");
   await client.end();
-  console.log("Database reset: public schema dropped and recreated");
+  console.log("Database reset: public + drizzle schemas dropped; public recreated");
   console.log("Run db:migrate afterwards to restore the schema.");
 }
 
