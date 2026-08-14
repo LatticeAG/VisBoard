@@ -1,18 +1,17 @@
+import { createWorkspaceSchema, updateWorkspaceSchema } from "@visboard/shared";
 import { Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
-import { assertWorkspaceAccess } from "../lib/helpers.js";
+import { assertWorkspaceAccess, reqParam } from "../lib/helpers.js";
+import { readJson } from "../lib/json.js";
+import { getExport, startExport } from "../services/export.js";
+import { importWorkspaceData, parseImportPayload } from "../services/import.js";
 import {
   createWorkspace,
   getWorkspaceBySlug,
   listWorkspaces,
   updateWorkspace,
 } from "../services/workspace.js";
-import { startExport, getExport } from "../services/export.js";
-import {
-  importWorkspaceData,
-  parseImportPayload,
-} from "../services/import.js";
 
 export const workspaceRoutes = new Hono();
 
@@ -31,7 +30,7 @@ workspaceRoutes.post("/", requireScope("admin"), async (c) => {
     const { forbidden } = await import("../lib/errors.js");
     throw forbidden("Only users can create workspaces");
   }
-  const body = await c.req.json<{ name: string; slug?: string }>();
+  const body = await readJson(c, createWorkspaceSchema);
   const { db } = getDb();
   const workspace = await createWorkspace(db, auth.id, body);
   return c.json(workspace, 201);
@@ -80,7 +79,7 @@ workspaceRoutes.post("/import", requireScope("admin"), async (c) => {
 
 workspaceRoutes.get("/:ws", async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
+  const wsSlug = reqParam(c, "ws");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -99,8 +98,8 @@ workspaceRoutes.get("/:ws", async (c) => {
 
 workspaceRoutes.patch("/:ws", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const body = await c.req.json<{ name?: string }>();
+  const wsSlug = reqParam(c, "ws");
+  const body = await readJson(c, updateWorkspaceSchema);
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -114,7 +113,7 @@ workspaceRoutes.patch("/:ws", requireScope("admin"), async (c) => {
 
 workspaceRoutes.post("/:ws/export", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
+  const wsSlug = reqParam(c, "ws");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -128,8 +127,8 @@ workspaceRoutes.post("/:ws/export", requireScope("admin"), async (c) => {
 
 workspaceRoutes.get("/:ws/exports/:id", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const exportId = c.req.param("id")!;
+  const wsSlug = reqParam(c, "ws");
+  const exportId = reqParam(c, "id");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -138,7 +137,7 @@ workspaceRoutes.get("/:ws/exports/:id", requireScope("admin"), async (c) => {
   }
   assertWorkspaceAccess(auth, ws.id);
 
-  const job = getExport(ws.id, exportId);
+  const job = await getExport(db, ws.id, exportId);
   if (!job) {
     const { notFound } = await import("../lib/errors.js");
     throw notFound(`Export '${exportId}' not found`);
@@ -162,7 +161,7 @@ workspaceRoutes.get("/:ws/exports/:id", requireScope("admin"), async (c) => {
 
 workspaceRoutes.post("/:ws/import", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
+  const wsSlug = reqParam(c, "ws");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -187,9 +186,7 @@ workspaceRoutes.post("/:ws/import", requireScope("admin"), async (c) => {
     };
   }
 
-  const body = multipartFile
-    ? multipartFile.data
-    : await c.req.arrayBuffer();
+  const body = multipartFile ? multipartFile.data : await c.req.arrayBuffer();
 
   const parsed = await parseImportPayload(contentType, body, multipartFile);
   const summary = await importWorkspaceData(db, wsSlug, auth, parsed);

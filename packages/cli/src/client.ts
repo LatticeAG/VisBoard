@@ -14,9 +14,7 @@ export async function createClient(
   return { client, workspace };
 }
 
-export function requireWorkspace(
-  workspace: string | undefined,
-): string {
+export function requireWorkspace(workspace: string | undefined): string {
   if (!workspace) {
     throw new Error(
       "No workspace configured. Use --workspace <slug> or `visboard workspace switch <slug>`.",

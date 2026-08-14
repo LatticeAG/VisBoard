@@ -107,13 +107,7 @@ export class HttpClient {
   }
 
   async requestRaw(path: string, options: RequestOptions = {}): Promise<Response> {
-    const {
-      method = "GET",
-      body,
-      headers = {},
-      query,
-      token = this.token,
-    } = options;
+    const { method = "GET", body, headers = {}, query, token = this.token } = options;
 
     const requestHeaders: Record<string, string> = { ...headers };
     if (token) {

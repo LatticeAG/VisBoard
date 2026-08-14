@@ -57,7 +57,5 @@ export type BoardExportFormat = z.infer<typeof boardExportFormatSchema>;
 export type LossinessEntry = z.infer<typeof lossinessEntrySchema>;
 export type LossinessReport = z.infer<typeof lossinessReportSchema>;
 export type InterchangeBlock = z.infer<typeof interchangeBlockSchema>;
-export type BoardInterchangeDocument = z.infer<
-  typeof boardInterchangeDocumentSchema
->;
+export type BoardInterchangeDocument = z.infer<typeof boardInterchangeDocumentSchema>;
 export type MarkdownImportDocument = z.infer<typeof markdownImportDocumentSchema>;

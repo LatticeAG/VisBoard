@@ -3,23 +3,14 @@ import { z } from "zod";
 /** Providers supported by the first V3 connector adapters. */
 export const integrationProviderSchema = z.enum(["github", "notion", "linear"]);
 
-export const syncDirectionSchema = z.enum([
-  "inbound",
-  "outbound",
-  "bidirectional",
-]);
+export const syncDirectionSchema = z.enum(["inbound", "outbound", "bidirectional"]);
 
 /**
  * Ownership is deliberately per field. A connector must not infer ownership
  * from a link's direction, because a linked issue can have locally-owned
  * evidence alongside externally-owned status.
  */
-export const fieldOwnershipSchema = z.enum([
-  "visboard",
-  "external",
-  "shared",
-  "mirrored",
-]);
+export const fieldOwnershipSchema = z.enum(["visboard", "external", "shared", "mirrored"]);
 
 export const externalObjectKindSchema = z.enum([
   "issue",
@@ -138,12 +129,8 @@ export type ExternalObjectKind = z.infer<typeof externalObjectKindSchema>;
 export type ExternalObject = z.infer<typeof externalObjectSchema>;
 export type FieldMapping = z.infer<typeof fieldMappingSchema>;
 export type IntegrationConnection = z.infer<typeof integrationConnectionSchema>;
-export type CreateIntegrationConnection = z.infer<
-  typeof createIntegrationConnectionSchema
->;
+export type CreateIntegrationConnection = z.infer<typeof createIntegrationConnectionSchema>;
 export type SyncLink = z.infer<typeof syncLinkSchema>;
 export type CreateSyncLink = z.infer<typeof createSyncLinkSchema>;
 export type SyncConflict = z.infer<typeof syncConflictSchema>;
-export type NormalizedExternalChange = z.infer<
-  typeof normalizedExternalChangeSchema
->;
+export type NormalizedExternalChange = z.infer<typeof normalizedExternalChangeSchema>;

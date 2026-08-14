@@ -19,7 +19,7 @@ export function outputData(data: unknown, options: GlobalOptions): void {
 }
 
 export function outputText(text: string, options: GlobalOptions): void {
-  if (options.quiet) return;
+  if (options.quiet || options.json) return;
   console.log(text);
 }
 
@@ -39,9 +39,7 @@ export function formatTable(rows: Record<string, unknown>[], columns: string[]):
   const divider = widths.map((w) => "-".repeat(w)).join("  ");
   const body = rows
     .map((row) =>
-      columns
-        .map((col, i) => String(row[col] ?? "").padEnd(widths[i] ?? col.length))
-        .join("  "),
+      columns.map((col, i) => String(row[col] ?? "").padEnd(widths[i] ?? col.length)).join("  "),
     )
     .join("\n");
   return `${header}\n${divider}\n${body}`;

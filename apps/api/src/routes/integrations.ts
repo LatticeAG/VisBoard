@@ -1,24 +1,18 @@
-import {
-  createIntegrationConnectionSchema,
-  createSyncLinkSchema,
-} from "@visboard/shared";
-import { Hono, type Context } from "hono";
+import { createIntegrationConnectionSchema, createSyncLinkSchema } from "@visboard/shared";
+import { type Context, Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
-import { getDb } from "../db.js";
-import { assertWorkspaceAccess } from "../lib/helpers.js";
+import { getDb, isPersistableDb } from "../db.js";
+import { getEnv } from "../env.js";
 import { badRequest, forbidden, notFound, unauthorized } from "../lib/errors.js";
-import {
-  executeBoardCommand,
-  getBoard,
-  getBoardState,
-} from "../services/board.js";
+import { assertWorkspaceAccess } from "../lib/helpers.js";
+import { resolveSecretsKey } from "../lib/secrets.js";
+import { executeBoardCommand, getBoard, getBoardState } from "../services/board.js";
 import { SyncEngine } from "../services/sync.js";
 import { getWorkspaceById } from "../services/workspace.js";
 import { getAutomationEngine } from "./automations.js";
 
 type JsonRecord = Record<string, unknown>;
 
-const connectionSecrets = new Map<string, string>();
 const resourceStates = new Map<string, JsonRecord>();
 const boardWorkspaceIds = new Map<string, string>();
 
@@ -108,15 +102,15 @@ async function boardResource(link: { board_id: string; resource_id: string }) {
   if (!workspaceId) return null;
   const { db } = getDb();
   const state = await getBoardState(db, workspaceId, link.board_id);
-  const block = state.blocks
-    .map(asRecord)
-    .find((candidate) => candidate.id === link.resource_id);
+  const block = state.blocks.map(asRecord).find((candidate) => candidate.id === link.resource_id);
   return { workspaceId, db, state, block };
 }
 
-function createReferenceSyncEngine(): SyncEngine {
+function createReferenceSyncEngine(db?: ReturnType<typeof getDb>["db"]): SyncEngine {
+  const persist = Boolean(db && isPersistableDb(db));
   return new SyncEngine({
-    resolveSecret: async (connection) => connectionSecrets.get(connection.id),
+    db: persist ? db : undefined,
+    secretsKey: persist ? resolveSecretsKey(getEnv()) : undefined,
     gateway: {
       // A configured link uses the board command path when its resource is a
       // live block. The tiny in-memory projection remains a safe fallback for
@@ -158,11 +152,14 @@ function createReferenceSyncEngine(): SyncEngine {
                 causation_id: change.delivery_id,
               },
             );
-            resourceStates.set(link.resource_id, blockProjection({
-              ...resource.block,
-              ...blockCommandPayload(resource.block, patch),
-            }));
-            await getAutomationEngine().processEvent({
+            resourceStates.set(
+              link.resource_id,
+              blockProjection({
+                ...resource.block,
+                ...blockCommandPayload(resource.block, patch),
+              }),
+            );
+            await getAutomationEngine(resource.db).processEvent({
               id: `sync:${link.id}:${change.delivery_id}`,
               type: "sync.inbound.applied",
               workspace_id: resource.workspaceId,
@@ -186,8 +183,8 @@ function createReferenceSyncEngine(): SyncEngine {
         const workspaceId = boardWorkspaceIds.get(boardId);
         if (!workspaceId) return undefined;
         try {
-          const { db } = getDb();
-          return (await getBoard(db, workspaceId, boardId)).effect_generation;
+          const { db: store } = getDb();
+          return (await getBoard(store, workspaceId, boardId)).effect_generation;
         } catch {
           return undefined;
         }
@@ -196,10 +193,19 @@ function createReferenceSyncEngine(): SyncEngine {
   });
 }
 
-let syncEngine = createReferenceSyncEngine();
+let memorySyncEngine = createReferenceSyncEngine();
+const persistableSyncEngines = new WeakMap<object, SyncEngine>();
 
-export function getIntegrationSyncEngine(): SyncEngine {
-  return syncEngine;
+export function getIntegrationSyncEngine(db?: ReturnType<typeof getDb>["db"]): SyncEngine {
+  if (db && isPersistableDb(db)) {
+    let engine = persistableSyncEngines.get(db);
+    if (!engine) {
+      engine = createReferenceSyncEngine(db);
+      persistableSyncEngines.set(db, engine);
+    }
+    return engine;
+  }
+  return memorySyncEngine;
 }
 
 export function getSyncedResourceState(resourceId: string): JsonRecord | null {
@@ -208,10 +214,9 @@ export function getSyncedResourceState(resourceId: string): JsonRecord | null {
 }
 
 export function resetIntegrationRoutesForTests(): void {
-  connectionSecrets.clear();
   resourceStates.clear();
   boardWorkspaceIds.clear();
-  syncEngine = createReferenceSyncEngine();
+  memorySyncEngine = createReferenceSyncEngine();
 }
 
 async function requireWorkspace(c: Context) {
@@ -260,7 +265,8 @@ integrationRoutes.post("/integrations/webhooks/:connection", async (c) => {
   const connectionId = c.req.param("connection");
   if (!connectionId) throw badRequest("Missing connection path parameter");
   const rawBody = new Uint8Array(await c.req.arrayBuffer());
-  const result = await syncEngine.ingestWebhook(
+  const { db } = getDb();
+  const result = await getIntegrationSyncEngine(db).ingestWebhook(
     connectionId,
     c.req.raw.headers,
     rawBody,
@@ -279,9 +285,9 @@ authenticatedIntegrationRoutes.get(
   "/workspaces/:workspace/integration-connections",
   requireScope("read", "admin"),
   async (c) => {
-    const { workspaceId } = await requireWorkspace(c);
+    const { db, workspaceId } = await requireWorkspace(c);
     return c.json({
-      data: syncEngine
+      data: getIntegrationSyncEngine(db)
         .listConnections()
         .filter((connection) => connection.workspace_id === workspaceId),
     });
@@ -292,11 +298,12 @@ authenticatedIntegrationRoutes.post(
   "/workspaces/:workspace/integration-connections",
   requireScope("admin"),
   async (c) => {
-    const { workspaceId } = await requireWorkspace(c);
+    const { db, workspaceId } = await requireWorkspace(c);
     const body = asRecord(await c.req.json());
-    const connection = syncEngine.createConnection(parseBody(body, workspaceId));
+    const engine = getIntegrationSyncEngine(db);
     const webhookSecret = asString(body.webhook_secret);
-    if (webhookSecret) connectionSecrets.set(connection.id, webhookSecret);
+    const connection = engine.createConnection(parseBody(body, workspaceId), webhookSecret);
+    await engine.flush();
     return c.json(connection, 201);
   },
 );
@@ -305,8 +312,8 @@ authenticatedIntegrationRoutes.get(
   "/workspaces/:workspace/boards/:board/sync-links",
   requireScope("read", "admin"),
   async (c) => {
-    const { boardId } = await requireBoard(c);
-    return c.json({ data: syncEngine.listLinks(boardId) });
+    const { db, boardId } = await requireBoard(c);
+    return c.json({ data: getIntegrationSyncEngine(db).listLinks(boardId) });
   },
 );
 
@@ -314,7 +321,7 @@ authenticatedIntegrationRoutes.post(
   "/workspaces/:workspace/boards/:board/sync-links",
   requireScope("admin"),
   async (c) => {
-    const { workspaceId, boardId } = await requireBoard(c);
+    const { db, workspaceId, boardId } = await requireBoard(c);
     const body = asRecord(await c.req.json());
     const parsed = createSyncLinkSchema.safeParse({
       id: asString(body.id),
@@ -330,12 +337,15 @@ authenticatedIntegrationRoutes.post(
       state: body.state,
     });
     if (!parsed.success) throw badRequest(parsed.error.message);
-    const connection = syncEngine.getConnection(parsed.data.connection_id);
-    if (!connection) throw notFound(`Integration connection '${parsed.data.connection_id}' not found`);
+    const engine = getIntegrationSyncEngine(db);
+    const connection = engine.getConnection(parsed.data.connection_id);
+    if (!connection)
+      throw notFound(`Integration connection '${parsed.data.connection_id}' not found`);
     if (connection.workspace_id !== workspaceId) {
       throw forbidden("Integration connection belongs to a different workspace");
     }
-    const link = syncEngine.createLink(parsed.data);
+    const link = engine.createLink(parsed.data);
+    await engine.flush();
     boardWorkspaceIds.set(boardId, workspaceId);
     resourceStates.set(link.resource_id, clone(link.baseline));
     return c.json(link, 201);

@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import type { EventRecord } from '@visboard/sdk';
-import { api, getEventsStreamUrl } from '@/lib/api-client';
+import { api, getEventsStreamUrl } from "@/lib/api-client";
+import type { EventRecord } from "@visboard/sdk";
+import { useEffect, useRef, useState } from "react";
 
 interface ActivityStreamProps {
   ws: string;
@@ -54,7 +54,7 @@ export function ActivityStream({ ws, project, collapsed, onToggle }: ActivityStr
     };
 
     const trySse = () => {
-      if (typeof EventSource === 'undefined') {
+      if (typeof EventSource === "undefined") {
         startPolling();
         return;
       }
@@ -139,14 +139,9 @@ export function ActivityStream({ ws, project, collapsed, onToggle }: ActivityStr
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {error && (
-          <p className="px-3 py-2 font-mono text-xs text-red-400">{error}</p>
-        )}
+        {error && <p className="px-3 py-2 font-mono text-xs text-red-400">{error}</p>}
         {events.map((evt) => (
-          <div
-            key={evt.id}
-            className="border-b border-border px-3 py-2 font-mono text-xs"
-          >
+          <div key={evt.id} className="border-b border-border px-3 py-2 font-mono text-xs">
             <div className="flex items-center gap-2">
               <span className="text-accent">{evt.type}</span>
               <span className="text-muted">{formatTime(evt.created_at)}</span>
@@ -171,5 +166,5 @@ export function ActivityStream({ ws, project, collapsed, onToggle }: ActivityStr
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }

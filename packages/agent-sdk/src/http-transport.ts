@@ -62,7 +62,10 @@ export class HttpAgentTransport implements AgentTransport {
   constructor(options: HttpAgentTransportOptions) {
     this.client = options.client;
     this.workspaceId = options.workspace_id;
-    this.v2BaseUrl = (options.v2_base_url ?? deriveV2BaseUrl(options.client.baseUrl)).replace(/\/$/, "");
+    this.v2BaseUrl = (options.v2_base_url ?? deriveV2BaseUrl(options.client.baseUrl)).replace(
+      /\/$/,
+      "",
+    );
   }
 
   getContext(input: GetAgentContextInput): Promise<AgentContext> {
@@ -85,64 +88,82 @@ export class HttpAgentTransport implements AgentTransport {
 
   getWorkspace(input: ScopedAgentWorkspaceInput): Promise<AgentWorkspace> {
     return this.client.request(this.workspacePath(input.board_id, input.agent_workspace_id), {
-      query: accessQuery(input.access),
+      headers: accessHeaders(input.access),
     });
   }
 
   listFiles(input: ListAgentFilesInput): Promise<AgentFileTree> {
-    return this.client.request(this.workspacePath(input.board_id, input.agent_workspace_id, "/tree"), {
-      query: compactQuery({
-        ...accessQuery(input.access),
-        path: input.path,
-        cursor: input.cursor,
-        limit: input.limit,
-      }),
-    });
+    return this.client.request(
+      this.workspacePath(input.board_id, input.agent_workspace_id, "/tree"),
+      {
+        headers: accessHeaders(input.access),
+        query: compactQuery({
+          path: input.path,
+          cursor: input.cursor,
+          limit: input.limit,
+        }),
+      },
+    );
   }
 
   readFile(input: ReadAgentFileInput): Promise<AgentFile> {
-    return this.client.request(this.filePath(input.board_id, input.agent_workspace_id, input.path), {
-      query: accessQuery(input.access),
-    });
+    return this.client.request(
+      this.filePath(input.board_id, input.agent_workspace_id, input.path),
+      {
+        headers: accessHeaders(input.access),
+      },
+    );
   }
 
   writeFile(input: WriteAgentFileInput): Promise<AgentFile> {
-    return this.client.request(this.filePath(input.board_id, input.agent_workspace_id, input.path), {
-      method: "PUT",
-      body: {
-        content: input.content,
-        expected_etag: input.expected_etag,
-        generated: input.generated,
-        access: input.access,
+    return this.client.request(
+      this.filePath(input.board_id, input.agent_workspace_id, input.path),
+      {
+        method: "PUT",
+        body: {
+          content: input.content,
+          expected_etag: input.expected_etag,
+          generated: input.generated,
+          access: input.access,
+        },
       },
-    });
+    );
   }
 
   deleteFile(input: DeleteAgentFileInput): Promise<void> {
-    return this.client.request(this.filePath(input.board_id, input.agent_workspace_id, input.path), {
-      method: "DELETE",
-      body: {
-        expected_etag: input.expected_etag,
-        access: input.access,
+    return this.client.request(
+      this.filePath(input.board_id, input.agent_workspace_id, input.path),
+      {
+        method: "DELETE",
+        body: {
+          expected_etag: input.expected_etag,
+          access: input.access,
+        },
       },
-    });
+    );
   }
 
   getScratchpad(input: ScopedAgentWorkspaceInput): Promise<AgentScratchpad> {
-    return this.client.request(this.workspacePath(input.board_id, input.agent_workspace_id, "/scratchpad"), {
-      query: accessQuery(input.access),
-    });
+    return this.client.request(
+      this.workspacePath(input.board_id, input.agent_workspace_id, "/scratchpad"),
+      {
+        headers: accessHeaders(input.access),
+      },
+    );
   }
 
   updateScratchpad(input: UpdateAgentScratchpadInput): Promise<AgentScratchpad> {
-    return this.client.request(this.workspacePath(input.board_id, input.agent_workspace_id, "/scratchpad"), {
-      method: "PUT",
-      body: {
-        content: input.content,
-        expected_etag: input.expected_etag,
-        access: input.access,
+    return this.client.request(
+      this.workspacePath(input.board_id, input.agent_workspace_id, "/scratchpad"),
+      {
+        method: "PUT",
+        body: {
+          content: input.content,
+          expected_etag: input.expected_etag,
+          access: input.access,
+        },
       },
-    });
+    );
   }
 
   startRun(input: StartAgentRunInput): Promise<AgentRunWithLease> {
@@ -153,7 +174,9 @@ export class HttpAgentTransport implements AgentTransport {
   }
 
   getRun(input: { board_id: string; run_id: string }): Promise<AgentRun> {
-    return this.client.request(this.boardPath(input.board_id, `/agent-runs/${encodeSegment(input.run_id)}`));
+    return this.client.request(
+      this.boardPath(input.board_id, `/agent-runs/${encodeSegment(input.run_id)}`),
+    );
   }
 
   heartbeat(input: RunMutationInput): Promise<AgentRun> {
@@ -164,10 +187,13 @@ export class HttpAgentTransport implements AgentTransport {
   }
 
   renewLease(input: RenewAgentLeaseInput): Promise<AgentLease> {
-    return this.client.request(this.runPath(input.board_id, input.access.run_id, "/lease-renewals"), {
-      method: "POST",
-      body: { access: input.access, duration_ms: input.duration_ms },
-    });
+    return this.client.request(
+      this.runPath(input.board_id, input.access.run_id, "/lease-renewals"),
+      {
+        method: "POST",
+        body: { access: input.access, duration_ms: input.duration_ms },
+      },
+    );
   }
 
   completeRun(input: CompleteAgentRunInput): Promise<AgentRun> {
@@ -282,8 +308,11 @@ function encodePath(value: string): string {
   return value.split("/").map(encodeSegment).join("/");
 }
 
-function accessQuery(access: { run_id: string; lease_id: string }): Record<string, string> {
-  return { run_id: access.run_id, lease_id: access.lease_id };
+function accessHeaders(access: { run_id: string; lease_id: string }): Record<string, string> {
+  return {
+    "X-Visboard-Run-Id": access.run_id,
+    "X-Visboard-Lease-Id": access.lease_id,
+  };
 }
 
 function compactQuery(

@@ -1,5 +1,5 @@
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export interface VisBoardConfig {
@@ -26,26 +26,27 @@ export async function loadConfig(): Promise<VisBoardConfig> {
   }
 }
 
-export async function saveConfig(config: VisBoardConfig): Promise<void> {
-  await mkdir(CONFIG_DIR, { recursive: true });
-  await writeFile(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, "utf8");
+export async function writeConfigFile(filePath: string, data: string): Promise<void> {
+  await writeFile(filePath, data, { encoding: "utf8", mode: 0o600 });
+  await chmod(filePath, 0o600);
 }
 
-export async function updateConfig(
-  patch: Partial<VisBoardConfig>,
-): Promise<VisBoardConfig> {
+export async function saveConfig(config: VisBoardConfig): Promise<void> {
+  await mkdir(CONFIG_DIR, { recursive: true });
+  await writeConfigFile(CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`);
+}
+
+export async function updateConfig(patch: Partial<VisBoardConfig>): Promise<VisBoardConfig> {
   const current = await loadConfig();
   const next = { ...current, ...patch };
   await saveConfig(next);
   return next;
 }
 
-export async function clearConfigKey(
-  key: keyof VisBoardConfig,
-): Promise<VisBoardConfig> {
+export async function clearConfigKey(key: keyof VisBoardConfig): Promise<VisBoardConfig> {
   const current = await loadConfig();
   const next = { ...current };
-  delete next[key];
+  next[key] = undefined;
   await saveConfig(next);
   return next;
 }

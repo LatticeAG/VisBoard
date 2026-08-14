@@ -15,13 +15,19 @@ services:
       retries: 5
 
   api:
-    build: ./apps/api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
     ports:
       - "8080:8080"
     environment:
+      NODE_ENV: development
       DATABASE_URL: postgresql://visboard:visboard@postgres:5432/visboard
       VISBOARD_DATA_DIR: /data
-      VISBOARD_TOKEN_PEPPER: ${VISBOARD_TOKEN_PEPPER:-dev-pepper-change-me}
+      VISBOARD_TOKEN_PEPPER: ${VISBOARD_TOKEN_PEPPER:-change-me-in-production-min-32-chars}
+      VISBOARD_AUTO_MIGRATE: "1"
+      VISBOARD_CORS_ORIGIN: http://localhost:3000
+      VISBOARD_ALLOW_INSECURE_DEFAULTS: "1"
     volumes:
       - uploads:/data
     depends_on:
@@ -29,7 +35,9 @@ services:
         condition: service_healthy
 
   web:
-    build: ./apps/web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
     ports:
       - "3000:3000"
     environment:

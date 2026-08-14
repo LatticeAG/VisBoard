@@ -73,14 +73,16 @@ function isCountSelect(arg: unknown): boolean {
 
 export function createInMemoryDb(
   initial?: Partial<InMemoryStore>,
-): Database & { store: InMemoryStore } {
+): Database & { store: InMemoryStore; getUpdateCallCount: () => number } {
   const store: InMemoryStore = { ...createEmptyStore(), ...initial };
+  let updateCallCount = 0;
 
   const db = {
     select: (arg?: unknown) => {
       if (isCountSelect(arg)) {
         return {
           from: (table: object) => ({
+            // biome-ignore lint/suspicious/noThenProperty: mock-db.ts promise-like drizzle count chain
             then: (resolve: (rows: { value: number }[]) => void) => {
               const key = tableKey(table);
               resolve([{ value: store[key].length }]);
@@ -96,6 +98,7 @@ export function createInMemoryDb(
             where: () => chain,
             orderBy: () => chain,
             limit: (n: number) => Promise.resolve(store[key].slice(0, n)),
+            // biome-ignore lint/suspicious/noThenProperty: mock-db.ts promise-like drizzle select chain
             then: (resolve: (rows: unknown[]) => void) =>
               Promise.resolve([...store[key]]).then(resolve),
           };
@@ -117,17 +120,21 @@ export function createInMemoryDb(
       set: (vals: Record<string, unknown>) => ({
         where: () => {
           const key = tableKey(table);
+          updateCallCount += 1;
           const updated = store[key].map((row) => ({ ...row, ...vals }));
           store[key] = updated;
           return { returning: () => Promise.resolve(updated) };
         },
       }),
     }),
+    transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(db),
+    execute: async () => [{ ok: 1 }],
   };
 
   return {
     db: db as Database["db"],
     client: { end: async () => {} } as Database["client"],
     store,
+    getUpdateCallCount: () => updateCallCount,
   };
 }

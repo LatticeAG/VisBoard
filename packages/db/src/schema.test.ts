@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import * as schema from "./schema/index";
+import * as schema from "./schema/index.js";
 
 const EXPECTED_TABLES = [
   "workspaces",
@@ -24,6 +24,20 @@ const EXPECTED_TABLES = [
   "templateVersions",
   "templateInstallations",
   "templateBlockMappings",
+  "agentWorkspaces",
+  "agentWorkspaceFiles",
+  "agentRuns",
+  "agentLeases",
+  "handoffs",
+  "handoffDecisions",
+  "automationRules",
+  "automationRuns",
+  "automationActionRuns",
+  "integrationConnections",
+  "syncLinks",
+  "syncConflicts",
+  "exportJobs",
+  "idempotencyRecords",
 ] as const;
 
 describe("schema exports", () => {

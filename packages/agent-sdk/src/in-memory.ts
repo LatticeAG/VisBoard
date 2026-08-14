@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { hashBeliefTrace, requireBeliefTraceForSubmit } from "./belief-trace.js";
 import {
   AgentConflictError,
   AgentIsolationError,
@@ -6,6 +6,7 @@ import {
   AgentModeError,
   HandoffStateError,
 } from "./errors.js";
+import { checksum, hash } from "./serialize.js";
 import type {
   AgentContext,
   AgentFile,
@@ -33,8 +34,8 @@ import type {
   HandoffPacket,
   HandoffPacketInput,
   HandoffState,
-  ListHandoffsInput,
   ListAgentFilesInput,
+  ListHandoffsInput,
   ReadAgentFileInput,
   RenewAgentLeaseInput,
   ResumeHandoffInput,
@@ -204,7 +205,9 @@ export class InMemoryAgentTransport implements AgentTransport {
     const current = mutable.files.get(path);
 
     if (current && input.expected_etag !== fileEtag(current)) {
-      throw new AgentConflictError(`File '${path}' changed; fetch it and retry with its current ETag`);
+      throw new AgentConflictError(
+        `File '${path}' changed; fetch it and retry with its current ETag`,
+      );
     }
     if (!current && input.expected_etag !== undefined && input.expected_etag !== null) {
       throw new AgentConflictError(`File '${path}' does not exist; create it without an ETag`);
@@ -228,7 +231,9 @@ export class InMemoryAgentTransport implements AgentTransport {
     const current = mutable.files.get(path);
     if (!current) throw new AgentIsolationError(`File '${path}' was not found`);
     if (input.expected_etag !== fileEtag(current)) {
-      throw new AgentConflictError(`File '${path}' changed; fetch it and retry with its current ETag`);
+      throw new AgentConflictError(
+        `File '${path}' changed; fetch it and retry with its current ETag`,
+      );
     }
     mutable.files.delete(path);
     this.touchWorkspace(mutable);
@@ -240,13 +245,13 @@ export class InMemoryAgentTransport implements AgentTransport {
   }
 
   async updateScratchpad(input: UpdateAgentScratchpadInput): Promise<AgentScratchpad> {
-    const mutable = this.requireWorkspaceMutableAccess(
-      input,
-      "contribute",
-      "update_scratchpad",
-    );
+    const mutable = this.requireWorkspaceMutableAccess(input, "contribute", "update_scratchpad");
     const currentEtag = scratchpadEtag(mutable.scratchpad);
-    if (input.expected_etag !== undefined && input.expected_etag !== null && input.expected_etag !== currentEtag) {
+    if (
+      input.expected_etag !== undefined &&
+      input.expected_etag !== null &&
+      input.expected_etag !== currentEtag
+    ) {
       throw new AgentConflictError("Scratchpad changed; fetch it and retry with its current ETag");
     }
     mutable.scratchpad = {
@@ -262,7 +267,9 @@ export class InMemoryAgentTransport implements AgentTransport {
     if (input.resumed_from_handoff_id) {
       const handoff = this.requireHandoff(input.board_id, input.resumed_from_handoff_id);
       if (!isResumable(handoff.state)) {
-        throw new HandoffStateError("A new lease requires an approved or changes-requested handoff");
+        throw new HandoffStateError(
+          "A new lease requires an approved or changes-requested handoff",
+        );
       }
     } else if (this.hasFrozenHandoff(input.board_id, input.agent_id)) {
       throw new AgentLeaseError(
@@ -273,7 +280,10 @@ export class InMemoryAgentTransport implements AgentTransport {
 
     if (input.agent_workspace_id) {
       const workspace = this.requireWorkspace(input.agent_workspace_id);
-      if (workspace.workspace.board_id !== input.board_id || workspace.workspace.agent_id !== input.agent_id) {
+      if (
+        workspace.workspace.board_id !== input.board_id ||
+        workspace.workspace.agent_id !== input.agent_id
+      ) {
         throw new AgentIsolationError("Agent run cannot attach another board or agent's workspace");
       }
     }
@@ -356,6 +366,7 @@ export class InMemoryAgentTransport implements AgentTransport {
       state: "draft",
       packet: normalizePacket(input.packet),
       packet_hash: null,
+      belief_trace_hash: null,
       claimed_by_id: null,
       submitted_at: null,
       decided_at: null,
@@ -394,15 +405,18 @@ export class InMemoryAgentTransport implements AgentTransport {
       throw new HandoffStateError("Only a draft handoff can be submitted");
     }
 
+    const trace = requireBeliefTraceForSubmit(handoff.packet);
     const snapshot = handoff.agent_workspace_id
       ? this.snapshotWorkspace(handoff.agent_workspace_id)
       : null;
     handoff.packet = {
       ...handoff.packet,
+      belief_trace: trace,
       workspace_snapshot: snapshot,
       source_revision_id: handoff.revision_id,
     };
     handoff.packet_hash = checksum(handoff.packet);
+    handoff.belief_trace_hash = hashBeliefTrace(trace);
     handoff.state = "awaiting_review";
     handoff.submitted_at = this.timestamp();
     handoff.updated_at = handoff.submitted_at;
@@ -463,7 +477,9 @@ export class InMemoryAgentTransport implements AgentTransport {
   async resumeHandoff(input: ResumeHandoffInput): Promise<AgentRunWithLease> {
     const handoff = this.requireHandoff(input.board_id, input.handoff_id);
     if (!isResumable(handoff.state)) {
-      throw new HandoffStateError("The handoff needs an eligible human decision before it can resume");
+      throw new HandoffStateError(
+        "The handoff needs an eligible human decision before it can resume",
+      );
     }
     const origin = this.requireRun(input.board_id, handoff.originating_run_id);
     if (origin.agent_id !== input.agent_id) {
@@ -539,16 +555,15 @@ export class InMemoryAgentTransport implements AgentTransport {
       throw new AgentLeaseError("This run lease has expired", "lease.expired");
     }
     if (run.state !== "running") {
-      throw new AgentLeaseError(`Run is ${run.state} and cannot mutate state`, "lease.run_not_mutable");
+      throw new AgentLeaseError(
+        `Run is ${run.state} and cannot mutate state`,
+        "lease.run_not_mutable",
+      );
     }
     return run;
   }
 
-  private requireMode(
-    run: AgentRun,
-    minimumMode: keyof typeof MODE_RANK,
-    operation: string,
-  ): void {
+  private requireMode(run: AgentRun, minimumMode: keyof typeof MODE_RANK, operation: string): void {
     if (MODE_RANK[run.mode] < MODE_RANK[minimumMode]) {
       throw new AgentModeError(run.mode, operation);
     }
@@ -764,17 +779,16 @@ function parseCursor(cursor: string | undefined): number {
 
 function clampLeaseDuration(durationMs: number): number {
   if (!Number.isFinite(durationMs) || durationMs <= 0) {
-    throw new AgentLeaseError("Lease duration must be a positive number", "validation.lease_duration");
+    throw new AgentLeaseError(
+      "Lease duration must be a positive number",
+      "validation.lease_duration",
+    );
   }
   return Math.min(Math.max(Math.floor(durationMs), 1_000), 60 * 60_000);
 }
 
 function byteLength(content: string): number {
   return Buffer.byteLength(content, "utf8");
-}
-
-function hash(content: string): string {
-  return createHash("sha256").update(content).digest("hex");
 }
 
 function fileEtag(file: MutableFile): string {
@@ -810,10 +824,7 @@ function formatFileEntry(path: string, file: MutableFile): AgentFileEntry {
   };
 }
 
-function formatScratchpad(
-  workspaceId: string,
-  scratchpad: MutableScratchpad,
-): AgentScratchpad {
+function formatScratchpad(workspaceId: string, scratchpad: MutableScratchpad): AgentScratchpad {
   return {
     workspace_id: workspaceId,
     content: scratchpad.content,
@@ -838,7 +849,7 @@ function inferLanguage(path: string): string | null {
     yml: "yaml",
     yaml: "yaml",
   };
-  return extension ? languageByExtension[extension] ?? null : null;
+  return extension ? (languageByExtension[extension] ?? null) : null;
 }
 
 function normalizePacket(input: HandoffPacketInput): HandoffPacket {
@@ -861,6 +872,7 @@ function normalizePacket(input: HandoffPacketInput): HandoffPacket {
     target_branch: input.target_branch ?? null,
     rollback_plan: input.rollback_plan ?? null,
     workspace_snapshot: null,
+    belief_trace: input.belief_trace,
   };
 }
 
@@ -881,20 +893,6 @@ function decisionState(outcome: DecideHandoffInput["outcome"]): HandoffState {
 
 function isResumable(state: HandoffState): boolean {
   return state === "approved" || state === "changes_requested";
-}
-
-function checksum(value: unknown): string {
-  return hash(stableStringify(value));
-}
-
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
-    .join(",")}}`;
 }
 
 function copy<T>(value: T): T {

@@ -1,5 +1,5 @@
 import { bigint, index, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { projects } from "./projects";
+import { projects } from "./projects.js";
 
 export const files = pgTable(
   "files",

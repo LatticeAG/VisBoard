@@ -15,6 +15,8 @@ export const EventType = {
   COMMENT_CREATED: "comment.created",
   COMMENT_UPDATED: "comment.updated",
   COMMENT_DELETED: "comment.deleted",
+  HANDOFF_SUBMITTED: "handoff.submitted",
+  HANDOFF_DECIDED: "handoff.decided",
 } as const;
 
 export type EventTypeValue = (typeof EventType)[keyof typeof EventType];

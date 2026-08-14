@@ -1,14 +1,11 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
-import { assertWorkspaceAccess } from "../lib/helpers.js";
+import { assertWorkspaceAccess, reqParam } from "../lib/helpers.js";
+import { readJson } from "../lib/json.js";
+import { createAgent, listAgents, revokeAgent, updateAgent } from "../services/agent.js";
 import { getWorkspaceBySlug } from "../services/workspace.js";
-import {
-  createAgent,
-  listAgents,
-  revokeAgent,
-  updateAgent,
-} from "../services/agent.js";
 
 export const agentRoutes = new Hono();
 
@@ -16,7 +13,7 @@ agentRoutes.use("*", authMiddleware);
 
 agentRoutes.get("/", requireScope("read", "admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
+  const wsSlug = reqParam(c, "ws");
   const projectSlug = c.req.query("project");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
@@ -31,13 +28,16 @@ agentRoutes.get("/", requireScope("read", "admin"), async (c) => {
 
 agentRoutes.post("/", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const body = await c.req.json<{
-    name: string;
-    description?: string;
-    scopes: string[];
-    project_ids?: string[];
-  }>();
+  const wsSlug = reqParam(c, "ws");
+  const body = await readJson(
+    c,
+    z.object({
+      name: z.string().min(1).max(256),
+      description: z.string().optional(),
+      scopes: z.array(z.string()).min(1),
+      project_ids: z.array(z.string()).optional(),
+    }),
+  );
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -51,14 +51,17 @@ agentRoutes.post("/", requireScope("admin"), async (c) => {
 
 agentRoutes.patch("/:id", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const agentId = c.req.param("id")!;
-  const body = await c.req.json<{
-    name?: string;
-    description?: string;
-    scopes?: string[];
-    project_ids?: string[];
-  }>();
+  const wsSlug = reqParam(c, "ws");
+  const agentId = reqParam(c, "id");
+  const body = await readJson(
+    c,
+    z.object({
+      name: z.string().min(1).max(256).optional(),
+      description: z.string().optional(),
+      scopes: z.array(z.string()).min(1).optional(),
+      project_ids: z.array(z.string()).optional(),
+    }),
+  );
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -72,8 +75,8 @@ agentRoutes.patch("/:id", requireScope("admin"), async (c) => {
 
 agentRoutes.post("/:id/revoke", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const agentId = c.req.param("id")!;
+  const wsSlug = reqParam(c, "ws");
+  const agentId = reqParam(c, "id");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {

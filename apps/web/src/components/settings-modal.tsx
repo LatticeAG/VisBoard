@@ -1,15 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import {
-  setToken,
-  clearToken,
-  getToken,
-  getApiUrl,
-  setApiUrl,
-  getDefaultApiUrl,
-} from '@/lib/auth';
-import { refreshClient } from '@/lib/api-client';
+import { refreshClient } from "@/lib/api-client";
+import { clearToken, getApiUrl, getDefaultApiUrl, getToken, setApiUrl, setToken } from "@/lib/auth";
+import { useEffect, useState } from "react";
 
 interface SettingsModalProps {
   open: boolean;
@@ -18,13 +11,13 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
-  const [token, setTokenValue] = useState('');
-  const [apiUrl, setApiUrlValue] = useState('');
+  const [token, setTokenValue] = useState("");
+  const [apiUrl, setApiUrlValue] = useState("");
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setTokenValue(getToken() ?? '');
+      setTokenValue(getToken() ?? "");
       setApiUrlValue(getApiUrl());
       setSaved(false);
     }
@@ -46,7 +39,7 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
 
   const handleClear = () => {
     clearToken();
-    setTokenValue('');
+    setTokenValue("");
     refreshClient();
     setSaved(true);
     onSaved?.();
@@ -60,13 +53,14 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onClick={onClose}
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
       role="presentation"
     >
-      <div
+      <dialog
+        open
         className="w-full max-w-md border border-border bg-surface p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
-        role="dialog"
+        onKeyDown={(e) => e.stopPropagation()}
         aria-labelledby="settings-title"
       >
         <h2
@@ -88,8 +82,8 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
           className="mb-1 w-full border border-border bg-bg px-3 py-2 font-mono text-sm text-text outline-none focus:border-accent"
         />
         <p className="mb-4 font-mono text-xs text-muted">
-          Overrides <code className="text-accent">NEXT_PUBLIC_API_URL</code> via
-          localStorage (<code className="text-accent">visboard_api_url</code>).
+          Overrides <code className="text-accent">NEXT_PUBLIC_API_URL</code> via localStorage (
+          <code className="text-accent">visboard_api_url</code>).
           <button
             type="button"
             onClick={handleResetApiUrl}
@@ -112,9 +106,8 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
         />
 
         <p className="mb-4 text-xs text-muted">
-          Paste your PAT from{' '}
-          <code className="font-mono text-accent">visboard auth bootstrap</code>.
-          Stored in localStorage as <code className="font-mono">visboard_token</code>.
+          Paste your PAT from <code className="font-mono text-accent">visboard auth bootstrap</code>
+          . Stored in localStorage as <code className="font-mono">visboard_token</code>.
         </p>
 
         <div className="flex flex-wrap gap-2">
@@ -141,10 +134,8 @@ export function SettingsModal({ open, onClose, onSaved }: SettingsModalProps) {
           </button>
         </div>
 
-        {saved && (
-          <p className="mt-3 font-mono text-xs text-success">Settings updated.</p>
-        )}
-      </div>
+        {saved && <p className="mt-3 font-mono text-xs text-success">Settings updated.</p>}
+      </dialog>
     </div>
   );
 }

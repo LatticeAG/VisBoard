@@ -1,12 +1,6 @@
 import { createPrefixedId } from "@visboard/shared";
-import { createDbFromEnv } from "./client";
-import {
-  notes,
-  projects,
-  users,
-  workspaceMembers,
-  workspaces,
-} from "./schema/index";
+import { createDbFromEnv } from "./client.js";
+import { notes, projects, users, workspaceMembers, workspaces } from "./schema/index.js";
 
 async function seed() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -89,7 +83,7 @@ async function seed() {
   console.log(`  project: demo (${projectId})`);
   console.log(`  note: purpose (${noteId})`);
   console.log(
-    "No PAT created — run `visboard auth bootstrap` (preferred) or create a token via the API.",
+    "No PAT created: run `visboard auth bootstrap` (preferred) or create a token via the API.",
   );
 
   await client.end();

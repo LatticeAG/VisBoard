@@ -17,3 +17,4 @@ export * from "./schemas/import.js";
 export * from "./schemas/integration.js";
 export * from "./schemas/automation.js";
 export * from "./schemas/interchange.js";
+export * from "./schemas/belief.js";

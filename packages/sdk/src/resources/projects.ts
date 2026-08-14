@@ -1,9 +1,5 @@
 import type { HttpClient } from "../http.js";
-import type {
-  CreateProjectInput,
-  Project,
-  UpdateProjectInput,
-} from "../types.js";
+import type { CreateProjectInput, Project, UpdateProjectInput } from "../types.js";
 
 export class ProjectsResource {
   constructor(private readonly http: HttpClient) {}

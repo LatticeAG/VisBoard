@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useRef } from 'react';
-import type { Note, ChecklistWithItems, FileRecord } from '@visboard/sdk';
+import type { ChecklistWithItems, FileRecord, Note } from "@visboard/sdk";
+import { useRef } from "react";
 
-export type SidebarTab = 'notes' | 'checklists' | 'files';
+export type SidebarTab = "notes" | "checklists" | "files";
 
 interface SidebarProps {
   activeTab: SidebarTab;
@@ -39,9 +39,9 @@ export function Sidebar({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const tabs: { id: SidebarTab; label: string }[] = [
-    { id: 'notes', label: 'Notes' },
-    { id: 'checklists', label: 'Checklists' },
-    { id: 'files', label: 'Files' },
+    { id: "notes", label: "Notes" },
+    { id: "checklists", label: "Checklists" },
+    { id: "files", label: "Files" },
   ];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,7 +49,7 @@ export function Sidebar({
     if (file && onUploadFile) {
       onUploadFile(file);
     }
-    e.target.value = '';
+    e.target.value = "";
   };
 
   return (
@@ -62,8 +62,8 @@ export function Sidebar({
             onClick={() => onTabChange(tab.id)}
             className={`flex-1 px-2 py-2 font-mono text-xs uppercase tracking-wide ${
               activeTab === tab.id
-                ? 'border-b-2 border-accent text-text'
-                : 'text-muted hover:text-text'
+                ? "border-b-2 border-accent text-text"
+                : "text-muted hover:text-text"
             }`}
           >
             {tab.label}
@@ -72,7 +72,7 @@ export function Sidebar({
       </div>
 
       <div className="border-b border-border px-2 py-2">
-        {activeTab === 'notes' && onNewNote && (
+        {activeTab === "notes" && onNewNote && (
           <button
             type="button"
             onClick={onNewNote}
@@ -81,7 +81,7 @@ export function Sidebar({
             + New note
           </button>
         )}
-        {activeTab === 'checklists' && onNewChecklist && (
+        {activeTab === "checklists" && onNewChecklist && (
           <button
             type="button"
             onClick={onNewChecklist}
@@ -90,28 +90,23 @@ export function Sidebar({
             + New checklist
           </button>
         )}
-        {activeTab === 'files' && onUploadFile && (
+        {activeTab === "files" && onUploadFile && (
           <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              onChange={handleFileChange}
-            />
+            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
               className="w-full border border-border px-2 py-1 font-mono text-xs text-muted hover:border-accent hover:text-text disabled:opacity-50"
             >
-              {uploading ? 'Uploading…' : '+ Upload file'}
+              {uploading ? "Uploading…" : "+ Upload file"}
             </button>
           </>
         )}
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {activeTab === 'notes' && (
+        {activeTab === "notes" && (
           <ul>
             {notes.map((note) => (
               <li key={note.id}>
@@ -119,14 +114,12 @@ export function Sidebar({
                   type="button"
                   onClick={() => onSelectNote(note.id)}
                   className={`w-full border-b border-border px-3 py-2 text-left font-mono text-xs hover:bg-bg ${
-                    selectedNoteId === note.id ? 'bg-bg text-accent' : 'text-text'
+                    selectedNoteId === note.id ? "bg-bg text-accent" : "text-text"
                   }`}
                 >
                   <span className="block truncate">{note.title}</span>
                   <span className="text-muted">{note.slug}</span>
-                  {note.is_system && (
-                    <span className="ml-1 text-accent-dim">[sys]</span>
-                  )}
+                  {note.is_system && <span className="ml-1 text-accent-dim">[sys]</span>}
                 </button>
               </li>
             ))}
@@ -136,7 +129,7 @@ export function Sidebar({
           </ul>
         )}
 
-        {activeTab === 'checklists' && (
+        {activeTab === "checklists" && (
           <ul>
             {checklists.map((chk) => (
               <li key={chk.id}>
@@ -144,13 +137,12 @@ export function Sidebar({
                   type="button"
                   onClick={() => onSelectChecklist(chk.id)}
                   className={`w-full border-b border-border px-3 py-2 text-left font-mono text-xs hover:bg-bg ${
-                    selectedChecklistId === chk.id ? 'bg-bg text-accent' : 'text-text'
+                    selectedChecklistId === chk.id ? "bg-bg text-accent" : "text-text"
                   }`}
                 >
                   <span className="block truncate">{chk.title}</span>
                   <span className="text-muted">
-                    {chk.items?.filter((i) => i.done).length ?? 0}/
-                    {chk.items?.length ?? 0} done
+                    {chk.items?.filter((i) => i.done).length ?? 0}/{chk.items?.length ?? 0} done
                   </span>
                 </button>
               </li>
@@ -161,7 +153,7 @@ export function Sidebar({
           </ul>
         )}
 
-        {activeTab === 'files' && (
+        {activeTab === "files" && (
           <ul>
             {files.map((file) => (
               <li

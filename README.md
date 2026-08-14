@@ -162,11 +162,11 @@ The `@visboard/mcp` package exposes VisBoard to MCP-compatible clients (Cursor, 
 ```bash
 # Build and run (stdio transport)
 pnpm --filter @visboard/mcp build
-VISBOARD_TOKEN=vb_pat_... VISBOARD_BASE_URL=http://localhost:8080/v1 \
+VISBOARD_TOKEN=vb_pat_... VISBOARD_API_URL=http://localhost:8080/v1 \
   pnpm --filter @visboard/mcp exec visboard-mcp
 ```
 
-Configure in your MCP client with env vars `VISBOARD_TOKEN`, `VISBOARD_BASE_URL`, and optional `VISBOARD_WORKSPACE`.
+Configure in your MCP client with env vars `VISBOARD_TOKEN`, `VISBOARD_API_URL` (alias `VISBOARD_BASE_URL`), and optional `VISBOARD_WORKSPACE`. The package is packed with `./scripts/pack-sdks.sh`; it is not published to npm in this cycle. Point Cursor at `node packages/mcp/dist/index.js` after `pnpm --filter @visboard/mcp build`.
 
 ## Packages
 
@@ -192,14 +192,15 @@ visboard/
 │   ├── shared/          Zod schemas, IDs, scopes, event types
 │   ├── db/              Drizzle ORM schema + migrations + seed
 │   ├── agents-md/       AGENTS.md protocol generator
-│   ├── api/             Hono app with routes
+│   ├── agent-sdk/       Agent run / handoff transport
 │   ├── sdk/             TypeScript client
 │   ├── cli/             visboard command-line tool
 │   └── mcp/             MCP server
 ├── docs/                Additional documentation
 ├── openapi/             OpenAPI 3.1 specification
-├── scripts/             Smoke tests, utilities
-├── SPEC.md              Full implementation specification
+├── scripts/             Smoke tests, pack-sdks
+├── AGENT.md             Contributor conventions
+├── SECURITY.md          Disclosure and threat notes
 ├── LICENSE              MIT
 └── README.md            This file
 ```
@@ -207,8 +208,13 @@ visboard/
 ## API Documentation
 
 - OpenAPI 3.1 spec: [`openapi/openapi.yaml`](./openapi/openapi.yaml)
-- Base URL: `http://localhost:8080/v1`
+- `/v1`: workspaces, projects, notes, checklists, files, agents, events, context
+- `/v2`: boards, handoffs, templates, automations, integrations
+- `/health` (liveness) and `/readyz` (Postgres `select 1`) on `http://localhost:8080`
 - Errors: RFC 7807 `application/problem+json`
+- Token pepper: `VISBOARD_TOKEN_PEPPER` must be at least 32 characters
+
+Security, contributor, and agent notes: [SECURITY.md](./SECURITY.md), [CONTRIBUTING.md](./CONTRIBUTING.md), [AGENT.md](./AGENT.md).
 
 ## Development
 
@@ -222,14 +228,15 @@ pnpm lint
 pnpm typecheck
 ```
 
-CI runs on every push to `main` and `cursor/*`.
+CI runs on every push to `main` and on pull requests.
 
 ## Known Issues
 
-- **PostgreSQL required** - VisBoard does not support SQLite. Postgres-specific features (row-level locking, LISTEN/NOTIFY) are used throughout. Use the Docker Compose setup for development.
+- **PostgreSQL required** - VisBoard does not support SQLite. Postgres-specific features (row-level locking, LISTEN/NOTIFY on `visboard_events`) are used throughout. Use the Docker Compose setup for development.
 - **File storage is local** - File uploads write to the local filesystem. For multi-replica deployments, mount a shared volume or replace the storage backend.
-- **No real-time sync between instances** - The SSE event stream is per-instance. Horizontal scaling requires a pub/sub bridge (planned for Phase 2).
+- **SSE across API processes** - Event rows are durable. `LISTEN/NOTIFY` on channel `visboard_events` fans the latest project event to other API processes sharing the same database. Redis is not used.
 - **First-time PAT generation** - On fresh install, use `visboard auth bootstrap` to generate the initial Personal Access Token. The web UI requires a PAT to authenticate.
+- **Health version** - `GET /health` reports package version `0.1.0`, not a git SHA.
 
 ## License
 

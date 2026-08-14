@@ -14,8 +14,7 @@ export function paginate<T extends { id: string }>(
 ): PaginatedResponse<T> {
   const hasMore = items.length > limit;
   const data = hasMore ? items.slice(0, limit) : items;
-  const nextCursor =
-    hasMore && data.length > 0 ? (data[data.length - 1]?.id ?? null) : null;
+  const nextCursor = hasMore && data.length > 0 ? (data[data.length - 1]?.id ?? null) : null;
   return {
     data,
     pagination: {
@@ -25,11 +24,7 @@ export function paginate<T extends { id: string }>(
   };
 }
 
-export function parseLimit(
-  raw: string | undefined,
-  defaultLimit = 50,
-  max = 100,
-): number {
+export function parseLimit(raw: string | undefined, defaultLimit = 50, max = 100): number {
   if (!raw) return defaultLimit;
   const n = Number.parseInt(raw, 10);
   if (Number.isNaN(n) || n < 1) return defaultLimit;

@@ -30,14 +30,12 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
 
-const SECRET_KEY = /(?:^|_)(?:secret|token|password|credential|authorization|api_key|refresh_token)(?:$|_)/i;
-const SECRET_REFERENCE_KEY = /(?:secret|token|credential).*(?:ref|reference|handle)|(?:ref|reference|handle).*(?:secret|token|credential)/i;
+const SECRET_KEY =
+  /(?:^|_)(?:secret|token|password|credential|authorization|api_key|refresh_token)(?:$|_)/i;
+const SECRET_REFERENCE_KEY =
+  /(?:secret|token|credential).*(?:ref|reference|handle)|(?:ref|reference|handle).*(?:secret|token|credential)/i;
 
-function redactSecrets(
-  value: unknown,
-  path: string,
-  entries: LossinessEntry[],
-): unknown {
+function redactSecrets(value: unknown, path: string, entries: LossinessEntry[]): unknown {
   if (Array.isArray(value)) {
     return value.map((entry, index) => redactSecrets(entry, `${path}[${index}]`, entries));
   }
@@ -96,11 +94,7 @@ function markdownEscaped(value: string): string {
 function blockTitle(block: InterchangeBlock): string {
   const attributes = asRecord(block.attributes);
   const content = asRecord(block.content);
-  return (
-    asString(attributes.title) ??
-    asString(content.title) ??
-    `${block.type} (${block.id})`
-  );
+  return asString(attributes.title) ?? asString(content.title) ?? `${block.type} (${block.id})`;
 }
 
 function blockText(block: InterchangeBlock): string | null {
@@ -217,8 +211,7 @@ export function exportBoardJson(
   const suppliedReport = options.lossinessReport;
   const lossinessReport: LossinessReport = {
     format: "json",
-    lossless:
-      (suppliedReport?.lossless ?? true) && sanitized.entries.length === 0,
+    lossless: (suppliedReport?.lossless ?? true) && sanitized.entries.length === 0,
     entries: [...(suppliedReport?.entries ?? []), ...sanitized.entries],
   };
   const document = {
@@ -315,24 +308,24 @@ export function importBoardMarkdown(markdown: string): MarkdownImportDocument {
       const parsed = boardInterchangeDocumentSchema.shape.blocks.element.safeParse(block);
       return parsed.success ? [clone(parsed.data)] : [];
     });
-  const markedReport = lossinessReportSchema.safeParse(
-    extractMarkers(markdown, "lossiness")[0],
-  );
+  const markedReport = lossinessReportSchema.safeParse(extractMarkers(markdown, "lossiness")[0]);
 
-  const normalizedBoard = Object.keys(board).length > 0
-    ? board
-    : { name: frontmatterTitle(markdown) ?? "Imported Markdown board" };
-  const blocks = markedBlocks.length > 0
-    ? markedBlocks
-    : [
-        {
-          id: createId("blk"),
-          type: "core.document",
-          schema_version: 1,
-          attributes: { title: frontmatterTitle(markdown) ?? "Imported Markdown" },
-          content: { markdown },
-        },
-      ];
+  const normalizedBoard =
+    Object.keys(board).length > 0
+      ? board
+      : { name: frontmatterTitle(markdown) ?? "Imported Markdown board" };
+  const blocks =
+    markedBlocks.length > 0
+      ? markedBlocks
+      : [
+          {
+            id: createId("blk"),
+            type: "core.document",
+            schema_version: 1,
+            attributes: { title: frontmatterTitle(markdown) ?? "Imported Markdown" },
+            content: { markdown },
+          },
+        ];
 
   return markdownImportDocumentSchema.parse({
     format: "visboard-board-markdown",
@@ -353,10 +346,7 @@ export type ImportedBoard =
   | { format: "json"; document: BoardInterchangeDocument }
   | { format: "markdown"; document: MarkdownImportDocument };
 
-export function importBoardInterchange(
-  content: string,
-  contentType?: string,
-): ImportedBoard {
+export function importBoardInterchange(content: string, contentType?: string): ImportedBoard {
   const trimmed = content.trimStart();
   if (contentType?.includes("json") || trimmed.startsWith("{")) {
     return { format: "json", document: parseBoardJson(content) };

@@ -1,8 +1,8 @@
 import { createWriteStream } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type { Command } from "commander";
 import { createClient, requireWorkspace } from "../client.js";
 import { getGlobalOptions } from "../globals.js";
@@ -67,11 +67,7 @@ export function registerFileCommands(program: Command): void {
     .requiredOption("--project <slug>", "project slug")
     .argument("<file-id>", "file id")
     .option("--out <dir>", "output directory", ".")
-    .action(async function (
-      this: Command,
-      fileId: string,
-      opts: { project: string; out: string },
-    ) {
+    .action(async function (this: Command, fileId: string, opts: { project: string; out: string }) {
       const globals = getGlobalOptions(this);
       const { client, workspace } = await createClient(globals);
       const ws = requireWorkspace(workspace);

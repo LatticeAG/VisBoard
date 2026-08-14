@@ -25,6 +25,6 @@ Use **Drizzle ORM** with **PostgreSQL 16**:
 
 ## Alternatives considered
 
-- **Prisma** — explicitly excluded in Phase 1 spec
-- **Raw SQL** — loses TypeScript inference and migration tooling
-- **SQLite** — insufficient for concurrent multi-user OSS deployments
+- **Prisma**: explicitly excluded in Phase 1 spec
+- **Raw SQL**: loses TypeScript inference and migration tooling
+- **SQLite**: insufficient for concurrent multi-user OSS deployments

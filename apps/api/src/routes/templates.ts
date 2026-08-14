@@ -1,7 +1,4 @@
-import {
-  createTemplateSchema,
-  createTemplateVersionSchema,
-} from "@visboard/shared";
+import { createTemplateSchema, createTemplateVersionSchema } from "@visboard/shared";
 import { Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
@@ -37,20 +34,14 @@ templateRoutes.post("/", requireScope("admin"), async (c) => {
   return c.json(await createTemplate(db, auth, input), 201);
 });
 
-templateRoutes.post(
-  "/:template/versions",
-  requireScope("admin"),
-  async (c) => {
-    const auth = c.get("auth");
-    const templateId = c.req.param("template");
-    if (!templateId) throw badRequest("Missing template path parameter");
-    const { db } = getDb();
-    const input = parseJson(
-      createTemplateVersionSchema.safeParse(await c.req.json()),
-    );
-    return c.json(await createTemplateVersion(db, auth, templateId, input), 201);
-  },
-);
+templateRoutes.post("/:template/versions", requireScope("admin"), async (c) => {
+  const auth = c.get("auth");
+  const templateId = c.req.param("template");
+  if (!templateId) throw badRequest("Missing template path parameter");
+  const { db } = getDb();
+  const input = parseJson(createTemplateVersionSchema.safeParse(await c.req.json()));
+  return c.json(await createTemplateVersion(db, auth, templateId, input), 201);
+});
 
 templateRoutes.get("/:template", requireScope("read", "admin"), async (c) => {
   const templateId = c.req.param("template");

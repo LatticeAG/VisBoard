@@ -4,7 +4,7 @@ export const workspaces = pgTable(
   "workspaces",
   {
     id: text("id").primaryKey(),
-    slug: text("slug").notNull().unique(),
+    slug: text("slug").notNull(),
     name: text("name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

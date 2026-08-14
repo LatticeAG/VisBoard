@@ -26,13 +26,21 @@ jobs:
     env:
       DATABASE_URL: postgresql://visboard:visboard@localhost:5432/visboard
       VISBOARD_TOKEN_PEPPER: ci-pepper-change-me-in-production-min-32-chars
+      VISBOARD_AUTO_MIGRATE: "0"
+      VISBOARD_DATA_DIR: ${{ github.workspace }}/data
+      VISBOARD_CORS_ORIGIN: http://localhost:3000
+      NODE_ENV: development
+      PORT: "8080"
+      API_BASE_URL: http://localhost:8080
+      NEXT_PUBLIC_API_URL: http://localhost:8080/v1
+      PLAYWRIGHT: "1"
 
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 9.15.0
 
       - uses: actions/setup-node@v4
         with:
@@ -51,5 +59,30 @@ jobs:
 
       - run: pnpm build
 
-      # Smoke test skipped in CI: requires a running API server and linked CLI.
-      # Run locally with: docker compose up -d && ./scripts/smoke.sh
+      - name: Install Playwright Chromium
+        run: pnpm --filter @visboard/web exec playwright install --with-deps chromium
+
+      - name: Start API
+        run: pnpm --filter @visboard/api start &
+
+      - name: Wait for readyz
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/health >/dev/null && curl -sf http://localhost:8080/readyz >/dev/null; then
+              echo "API ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "API did not become ready"
+          exit 1
+
+      - name: V1 smoke
+        run: chmod +x ./scripts/smoke.sh && ./scripts/smoke.sh
+
+      - name: Playwright onboarding
+        run: pnpm --filter @visboard/web exec playwright test
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+          PLAYWRIGHT_WEB_PORT: "3000"
+          CI: "true"

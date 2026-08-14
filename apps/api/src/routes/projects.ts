@@ -1,8 +1,9 @@
+import { createProjectSchema, updateProjectSchema } from "@visboard/shared";
 import { Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
-import { assertWorkspaceAccess } from "../lib/helpers.js";
-import { getWorkspaceBySlug } from "../services/workspace.js";
+import { assertWorkspaceAccess, reqParam } from "../lib/helpers.js";
+import { readJson } from "../lib/json.js";
 import {
   archiveProject,
   createProject,
@@ -10,6 +11,7 @@ import {
   listProjects,
   updateProject,
 } from "../services/project.js";
+import { getWorkspaceBySlug } from "../services/workspace.js";
 
 export const projectRoutes = new Hono();
 
@@ -17,7 +19,7 @@ projectRoutes.use("*", authMiddleware);
 
 projectRoutes.get("/", requireScope("read"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
+  const wsSlug = reqParam(c, "ws");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -31,13 +33,8 @@ projectRoutes.get("/", requireScope("read"), async (c) => {
 
 projectRoutes.post("/", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const body = await c.req.json<{
-    name: string;
-    slug?: string;
-    description?: string;
-    status?: string;
-  }>();
+  const wsSlug = reqParam(c, "ws");
+  const body = await readJson(c, createProjectSchema);
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -51,8 +48,8 @@ projectRoutes.post("/", requireScope("admin"), async (c) => {
 
 projectRoutes.get("/:p", requireScope("read"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -67,13 +64,9 @@ projectRoutes.get("/:p", requireScope("read"), async (c) => {
 
 projectRoutes.patch("/:p", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
-  const body = await c.req.json<{
-    name?: string;
-    description?: string;
-    status?: string;
-  }>();
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const body = await readJson(c, updateProjectSchema);
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -87,8 +80,8 @@ projectRoutes.patch("/:p", requireScope("admin"), async (c) => {
 
 projectRoutes.delete("/:p", requireScope("admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {

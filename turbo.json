@@ -1,5 +1,14 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": [
+    "DATABASE_URL",
+    "NODE_ENV",
+    "VISBOARD_TOKEN_PEPPER",
+    "VISBOARD_DATA_DIR",
+    "VISBOARD_BOOTSTRAP_TOKEN",
+    "VISBOARD_SECRETS_KEY",
+    "VISBOARD_AUTO_MIGRATE"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

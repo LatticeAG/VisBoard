@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import type { CreateNoteInput } from '@visboard/sdk';
+import type { CreateNoteInput } from "@visboard/sdk";
+import { useEffect, useRef, useState } from "react";
 
 interface CreateNoteModalProps {
   open: boolean;
@@ -10,18 +10,25 @@ interface CreateNoteModalProps {
 }
 
 export function CreateNoteModal({ open, onClose, onCreate }: CreateNoteModalProps) {
-  const [title, setTitle] = useState('');
-  const [slug, setSlug] = useState('');
-  const [body, setBody] = useState('');
+  const [title, setTitle] = useState("");
+  const [slug, setSlug] = useState("");
+  const [body, setBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      titleInputRef.current?.focus();
+    }
+  }, [open]);
 
   if (!open) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setError('Title is required');
+      setError("Title is required");
       return;
     }
 
@@ -40,12 +47,12 @@ export function CreateNoteModal({ open, onClose, onCreate }: CreateNoteModalProp
     setSubmitting(false);
 
     if (result.ok) {
-      setTitle('');
-      setSlug('');
-      setBody('');
+      setTitle("");
+      setSlug("");
+      setBody("");
       onClose();
     } else {
-      setError(result.error ?? 'Failed to create note');
+      setError(result.error ?? "Failed to create note");
     }
   };
 
@@ -53,13 +60,14 @@ export function CreateNoteModal({ open, onClose, onCreate }: CreateNoteModalProp
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onClick={onClose}
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+      onKeyDown={(e) => e.key === "Escape" && onClose()}
       role="presentation"
     >
-      <div
+      <dialog
+        open
         className="w-full max-w-md border border-border bg-surface p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
-        role="dialog"
+        onKeyDown={(e) => e.stopPropagation()}
         aria-labelledby="create-note-title"
       >
         <h2
@@ -74,13 +82,13 @@ export function CreateNoteModal({ open, onClose, onCreate }: CreateNoteModalProp
             Title
           </label>
           <input
+            ref={titleInputRef}
             id="note-title"
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="mb-3 w-full border border-border bg-bg px-3 py-2 font-mono text-sm text-text outline-none focus:border-accent"
             placeholder="Note title"
-            autoFocus
           />
 
           <label className="mb-1 block font-mono text-xs text-muted" htmlFor="note-slug">
@@ -107,9 +115,7 @@ export function CreateNoteModal({ open, onClose, onCreate }: CreateNoteModalProp
             placeholder="Markdown content…"
           />
 
-          {error && (
-            <p className="mb-3 font-mono text-xs text-red-400">{error}</p>
-          )}
+          {error && <p className="mb-3 font-mono text-xs text-red-400">{error}</p>}
 
           <div className="flex gap-2">
             <button
@@ -117,7 +123,7 @@ export function CreateNoteModal({ open, onClose, onCreate }: CreateNoteModalProp
               disabled={submitting}
               className="border border-accent bg-accent-dim px-4 py-1.5 font-mono text-xs text-text hover:bg-accent disabled:opacity-50"
             >
-              {submitting ? 'Creating…' : 'Create'}
+              {submitting ? "Creating…" : "Create"}
             </button>
             <button
               type="button"
@@ -128,7 +134,7 @@ export function CreateNoteModal({ open, onClose, onCreate }: CreateNoteModalProp
             </button>
           </div>
         </form>
-      </div>
+      </dialog>
     </div>
   );
 }

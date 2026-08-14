@@ -1,6 +1,6 @@
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
 
 :root {
   --bg: #0c0c0e;
@@ -11,8 +11,8 @@
   --accent: #5b8def;
   --accent-dim: #3d5a9e;
   --success: #4ade80;
-  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 * {
@@ -35,8 +35,7 @@ body {
 
 .app-shell {
   background-color: var(--bg);
-  background-image:
-    linear-gradient(var(--border) 1px, transparent 1px),
+  background-image: linear-gradient(var(--border) 1px, transparent 1px),
     linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 24px 24px;
   background-position: -1px -1px;

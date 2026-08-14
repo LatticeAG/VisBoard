@@ -4,11 +4,11 @@ import {
   installTemplateSchema,
   updateBoardSchema,
 } from "@visboard/shared";
-import { Hono, type Context } from "hono";
+import { type Context, Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
-import { assertWorkspaceAccess, actorFromAuth } from "../lib/helpers.js";
 import { badRequest, notFound } from "../lib/errors.js";
+import { actorFromAuth, assertWorkspaceAccess } from "../lib/helpers.js";
 import {
   captureBoardRevision,
   createBoard,
@@ -81,7 +81,7 @@ async function dispatchAutomationEvent(
   payload: Record<string, unknown>,
 ): Promise<void> {
   const board = await getBoard(db, workspaceId, boardId);
-  await getAutomationEngine().processEvent({
+  await getAutomationEngine(db).processEvent({
     id: `automation-event:${revision.id}`,
     type,
     workspace_id: workspaceId,
@@ -119,19 +119,14 @@ boardRoutes.post("/", requireScope("admin"), async (c) => {
       201,
     );
   }
-  return c.json(
-    { ...result.board, document: result.document, revision: result.revision },
-    201,
-  );
+  return c.json({ ...result.board, document: result.document, revision: result.revision }, 201);
 });
 
 boardRoutes.get("/:board/state", requireScope("read", "admin"), async (c) => {
   const { db, workspaceId } = await requireV2Workspace(c);
   const boardId = c.req.param("board");
   if (!boardId) throw badRequest("Missing board path parameter");
-  return c.json(
-    await getBoardState(db, workspaceId, boardId, c.req.query("at_revision")),
-  );
+  return c.json(await getBoardState(db, workspaceId, boardId, c.req.query("at_revision")));
 });
 
 boardRoutes.post(
@@ -167,28 +162,20 @@ boardRoutes.post(
   },
 );
 
-boardRoutes.get(
-  "/:board/blocks/:block",
-  requireScope("read", "admin"),
-  async (c) => {
-    const { db, workspaceId } = await requireV2Workspace(c);
-    const boardId = c.req.param("board");
-    const blockId = c.req.param("block");
-    if (!boardId || !blockId) throw badRequest("Missing board or block path parameter");
-    return c.json(await getBoardBlock(db, workspaceId, boardId, blockId));
-  },
-);
+boardRoutes.get("/:board/blocks/:block", requireScope("read", "admin"), async (c) => {
+  const { db, workspaceId } = await requireV2Workspace(c);
+  const boardId = c.req.param("board");
+  const blockId = c.req.param("block");
+  if (!boardId || !blockId) throw badRequest("Missing board or block path parameter");
+  return c.json(await getBoardBlock(db, workspaceId, boardId, blockId));
+});
 
-boardRoutes.get(
-  "/:board/revisions",
-  requireScope("read", "admin"),
-  async (c) => {
-    const { db, workspaceId } = await requireV2Workspace(c);
-    const boardId = c.req.param("board");
-    if (!boardId) throw badRequest("Missing board path parameter");
-    return c.json({ data: await listBoardRevisions(db, workspaceId, boardId) });
-  },
-);
+boardRoutes.get("/:board/revisions", requireScope("read", "admin"), async (c) => {
+  const { db, workspaceId } = await requireV2Workspace(c);
+  const boardId = c.req.param("board");
+  if (!boardId) throw badRequest("Missing board path parameter");
+  return c.json({ data: await listBoardRevisions(db, workspaceId, boardId) });
+});
 
 boardRoutes.post(
   "/:board/revisions",
@@ -228,17 +215,13 @@ boardRoutes.post(
   },
 );
 
-boardRoutes.get(
-  "/:board/revisions/:revision",
-  requireScope("read", "admin"),
-  async (c) => {
-    const { db, workspaceId } = await requireV2Workspace(c);
-    const boardId = c.req.param("board");
-    const revisionId = c.req.param("revision");
-    if (!boardId || !revisionId) throw badRequest("Missing board or revision path parameter");
-    return c.json(await getBoardRevision(db, workspaceId, boardId, revisionId));
-  },
-);
+boardRoutes.get("/:board/revisions/:revision", requireScope("read", "admin"), async (c) => {
+  const { db, workspaceId } = await requireV2Workspace(c);
+  const boardId = c.req.param("board");
+  const revisionId = c.req.param("revision");
+  if (!boardId || !revisionId) throw badRequest("Missing board or revision path parameter");
+  return c.json(await getBoardRevision(db, workspaceId, boardId, revisionId));
+});
 
 boardRoutes.get("/:board/diff", requireScope("read", "admin"), async (c) => {
   const { db, workspaceId } = await requireV2Workspace(c);
@@ -263,10 +246,7 @@ boardRoutes.post("/:board/restore", requireScope("admin"), async (c) => {
   if (typeof body.revision_id !== "string" || typeof body.reason !== "string") {
     throw badRequest("revision_id and reason are required strings");
   }
-  if (
-    body.expected_document_id !== undefined &&
-    typeof body.expected_document_id !== "string"
-  ) {
+  if (body.expected_document_id !== undefined && typeof body.expected_document_id !== "string") {
     throw badRequest("expected_document_id must be a string when provided");
   }
   const restored = await restoreBoardRevision(
@@ -276,46 +256,37 @@ boardRoutes.post("/:board/restore", requireScope("admin"), async (c) => {
     body.revision_id,
     auth,
     body.reason,
-    (typeof body.expected_document_id === "string"
+    typeof body.expected_document_id === "string"
       ? body.expected_document_id
-      : requestPreconditions(c).expectedDocumentId),
+      : requestPreconditions(c).expectedDocumentId,
   );
+  await dispatchAutomationEvent(db, workspaceId, boardId, auth, restored, "board.restored", {
+    restored_from_revision_id: restored.restored_from_revision_id,
+    reason: body.reason,
+  });
+  return c.json(restored);
+});
+
+boardRoutes.post("/:board/template-installations", requireScope("admin"), async (c) => {
+  const { auth, db, workspaceId } = await requireV2Workspace(c);
+  const boardId = c.req.param("board");
+  if (!boardId) throw badRequest("Missing board path parameter");
+  const input = parseJson(installTemplateSchema.safeParse(await c.req.json()));
+  const installed = await installTemplate(db, workspaceId, boardId, auth, input);
   await dispatchAutomationEvent(
     db,
     workspaceId,
     boardId,
     auth,
-    restored,
-    "board.restored",
-    { restored_from_revision_id: restored.restored_from_revision_id, reason: body.reason },
+    installed.revision,
+    "template.installed",
+    {
+      template_version_id: installed.installation.template_version_id,
+      installation_id: installed.installation.id,
+    },
   );
-  return c.json(restored);
+  return c.json(installed, 201);
 });
-
-boardRoutes.post(
-  "/:board/template-installations",
-  requireScope("admin"),
-  async (c) => {
-    const { auth, db, workspaceId } = await requireV2Workspace(c);
-    const boardId = c.req.param("board");
-    if (!boardId) throw badRequest("Missing board path parameter");
-    const input = parseJson(installTemplateSchema.safeParse(await c.req.json()));
-    const installed = await installTemplate(db, workspaceId, boardId, auth, input);
-    await dispatchAutomationEvent(
-      db,
-      workspaceId,
-      boardId,
-      auth,
-      installed.revision,
-      "template.installed",
-      {
-        template_version_id: installed.installation.template_version_id,
-        installation_id: installed.installation.id,
-      },
-    );
-    return c.json(installed, 201);
-  },
-);
 
 boardRoutes.get("/:board", requireScope("read", "admin"), async (c) => {
   const { db, workspaceId } = await requireV2Workspace(c);
@@ -329,7 +300,6 @@ boardRoutes.patch("/:board", requireScope("admin"), async (c) => {
   const boardId = c.req.param("board");
   if (!boardId) throw badRequest("Missing board path parameter");
   const input = parseJson(updateBoardSchema.safeParse(await c.req.json()));
-  input.expected_revision_id =
-    c.req.header("If-Board-Revision") ?? input.expected_revision_id;
+  input.expected_revision_id = c.req.header("If-Board-Revision") ?? input.expected_revision_id;
   return c.json(await updateBoard(db, workspaceId, boardId, input));
 });

@@ -54,7 +54,7 @@ export class WorkspacesResource {
     form.append("file", input.file, "export.zip");
     form.append("slug", input.slug);
     form.append("name", input.name);
-    return this.http.request(`/workspaces/import`, {
+    return this.http.request("/workspaces/import", {
       method: "POST",
       body: form,
     });
@@ -85,5 +85,10 @@ export class HealthResource {
   check(): Promise<HealthStatus> {
     const origin = this.http.baseUrl.replace(/\/v1\/?$/, "");
     return this.http.request<HealthStatus>(`${origin}/health`, { token: null });
+  }
+
+  ready(): Promise<HealthStatus> {
+    const origin = this.http.baseUrl.replace(/\/v1\/?$/, "");
+    return this.http.request<HealthStatus>(`${origin}/readyz`, { token: null });
   }
 }

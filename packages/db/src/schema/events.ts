@@ -1,5 +1,5 @@
 import { index, jsonb, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { projects } from "./projects";
+import { projects } from "./projects.js";
 
 export const events = pgTable(
   "events",

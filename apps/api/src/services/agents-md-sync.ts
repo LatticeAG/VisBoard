@@ -1,8 +1,9 @@
+import { generate } from "@visboard/agents-md";
 import {
+  events,
   agents,
   checklistItems,
   checklists,
-  events,
   files,
   notes,
   projects,
@@ -10,11 +11,10 @@ import {
   workspaceMembers,
   workspaces,
 } from "@visboard/db";
-import { generate } from "@visboard/agents-md";
+import type { Database } from "@visboard/db";
 import { EventType, PREFIX, createId } from "@visboard/shared";
 import type { ProjectStatus } from "@visboard/shared";
 import { and, eq, isNull } from "drizzle-orm";
-import type { Database } from "@visboard/db";
 import { getEnv } from "../env.js";
 import { firstParagraph } from "../lib/helpers.js";
 import { createEvent } from "./event.js";
@@ -43,23 +43,28 @@ export function clearAgentsMdSyncTimers(): void {
   debounceTimers.clear();
 }
 
+export async function flushAgentsMdSync(): Promise<void> {
+  const projectIds = [...debounceTimers.keys()];
+  clearAgentsMdSyncTimers();
+  for (const projectId of projectIds) {
+    try {
+      await syncAgentsMd(projectId);
+    } catch (err) {
+      console.error(`agents-md flush failed for ${projectId}:`, err);
+    }
+  }
+}
+
 export async function syncAgentsMd(projectId: string): Promise<string> {
   const { getDb } = await import("../db.js");
   const { db } = getDb();
   return syncAgentsMdWithDb(db, projectId);
 }
 
-export async function syncAgentsMdWithDb(
-  db: Database["db"],
-  projectId: string,
-): Promise<string> {
+export async function syncAgentsMdWithDb(db: Database["db"], projectId: string): Promise<string> {
   const env = getEnv();
 
-  const [project] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
+  const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   if (!project) return "";
 
   const [workspace] = await db
@@ -80,9 +85,7 @@ export async function syncAgentsMdWithDb(
   const checklistRows = await db
     .select()
     .from(checklists)
-    .where(
-      and(eq(checklists.projectId, projectId), isNull(checklists.deletedAt)),
-    );
+    .where(and(eq(checklists.projectId, projectId), isNull(checklists.deletedAt)));
 
   const checklistData = [];
   for (const chk of checklistRows) {
@@ -132,11 +135,7 @@ export async function syncAgentsMdWithDb(
 
   const userRows = [];
   for (const m of memberRows) {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, m.userId))
-      .limit(1);
+    const [user] = await db.select().from(users).where(eq(users.id, m.userId)).limit(1);
     if (user) userRows.push(user);
   }
 
@@ -263,19 +262,13 @@ export async function getContext(
     .select()
     .from(notes)
     .where(
-      and(
-        eq(notes.projectId, project.id),
-        isNull(notes.deletedAt),
-        eq(notes.isSystem, false),
-      ),
+      and(eq(notes.projectId, project.id), isNull(notes.deletedAt), eq(notes.isSystem, false)),
     );
 
   const checklistRows = await db
     .select()
     .from(checklists)
-    .where(
-      and(eq(checklists.projectId, project.id), isNull(checklists.deletedAt)),
-    );
+    .where(and(eq(checklists.projectId, project.id), isNull(checklists.deletedAt)));
 
   const checklistData = [];
   for (const chk of checklistRows) {
@@ -310,11 +303,7 @@ export async function getContext(
 
   const userParticipants = [];
   for (const m of memberRows) {
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, m.userId))
-      .limit(1);
+    const [user] = await db.select().from(users).where(eq(users.id, m.userId)).limit(1);
     if (user) {
       userParticipants.push({
         id: user.id,
@@ -335,9 +324,7 @@ export async function getContext(
     );
 
   const agentParticipants = agentRows
-    .filter(
-      (a) => a.projectIds.length === 0 || a.projectIds.includes(project.id),
-    )
+    .filter((a) => a.projectIds.length === 0 || a.projectIds.includes(project.id))
     .map((a) => ({
       id: a.id,
       name: a.name,

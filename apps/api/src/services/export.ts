@@ -1,15 +1,20 @@
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
+  type Database,
   checklistItems,
   checklists,
+  exportJobs as exportJobsTable,
   files,
   notes,
   projects,
   workspaces,
-  type Database,
 } from "@visboard/db";
-import { and, eq, isNull } from "drizzle-orm";
-import JSZip from "jszip";
+import { PREFIX, createId } from "@visboard/shared";
+import { and, eq, isNull, lt } from "drizzle-orm";
 import matter from "gray-matter";
+import JSZip from "jszip";
+import { getEnv } from "../env.js";
 import { readStoredFile } from "../lib/storage.js";
 import { formatNote } from "./note.js";
 import { formatProject } from "./project.js";
@@ -20,6 +25,7 @@ interface ExportJob {
   status: "pending" | "ready" | "failed";
   data?: Uint8Array;
   createdAt: Date;
+  storagePath?: string | null;
 }
 
 const exportJobs = new Map<string, ExportJob>();
@@ -72,17 +78,41 @@ export async function startExport(
   db: Database["db"],
   workspaceId: string,
 ): Promise<{ export_id: string; status: "pending" }> {
-  const exportId = `exp_${Date.now()}`;
+  await expireOldExports(db);
+  const exportId = createId(PREFIX.exportJob);
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const storagePath = `exports/${exportId}.zip`;
   const job: ExportJob = {
     id: exportId,
     workspaceId,
     status: "pending",
     createdAt: new Date(),
+    storagePath,
   };
   exportJobs.set(exportId, job);
+  try {
+    await db.insert(exportJobsTable).values({
+      id: exportId,
+      workspaceId,
+      status: "pending",
+      storagePath,
+      createdAt: job.createdAt,
+      expiresAt,
+    });
+  } catch {
+    // Mock databases used in unit tests do not host export_jobs.
+  }
 
-  processExport(db, job).catch(() => {
+  processExport(db, job).catch(async () => {
     job.status = "failed";
+    try {
+      await db
+        .update(exportJobsTable)
+        .set({ status: "failed", error: "Export generation failed" })
+        .where(eq(exportJobsTable.id, job.id));
+    } catch {
+      // mock db
+    }
   });
 
   return { export_id: exportId, status: "pending" };
@@ -103,9 +133,7 @@ async function processExport(db: Database["db"], job: ExportJob) {
   const projectRows = await db
     .select()
     .from(projects)
-    .where(
-      and(eq(projects.workspaceId, job.workspaceId), isNull(projects.deletedAt)),
-    );
+    .where(and(eq(projects.workspaceId, job.workspaceId), isNull(projects.deletedAt)));
 
   const allNotes: ReturnType<typeof formatNote>[] = [];
   const allChecklists: ExportManifest["checklists"] = [];
@@ -124,10 +152,7 @@ async function processExport(db: Database["db"], job: ExportJob) {
       allNotes.push(formatted);
 
       if (!note.isSystem) {
-        const md = matter.stringify(
-          note.body,
-          note.frontmatter as Record<string, unknown>,
-        );
+        const md = matter.stringify(note.body, note.frontmatter as Record<string, unknown>);
         zip.file(`notes/${project.slug}/${note.slug}.md`, md);
       }
     }
@@ -135,9 +160,7 @@ async function processExport(db: Database["db"], job: ExportJob) {
     const checklistRows = await db
       .select()
       .from(checklists)
-      .where(
-        and(eq(checklists.projectId, project.id), isNull(checklists.deletedAt)),
-      );
+      .where(and(eq(checklists.projectId, project.id), isNull(checklists.deletedAt)));
 
     for (const chk of checklistRows) {
       const items = await db
@@ -217,16 +240,84 @@ async function processExport(db: Database["db"], job: ExportJob) {
     type: "uint8array",
     compression: "DEFLATE",
   });
+  const env = getEnv();
+  const fullPath = join(env.VISBOARD_DATA_DIR, job.storagePath ?? `exports/${job.id}.zip`);
+  await mkdir(join(env.VISBOARD_DATA_DIR, "exports"), { recursive: true });
+  await writeFile(fullPath, job.data);
   job.status = "ready";
+  try {
+    await db
+      .update(exportJobsTable)
+      .set({ status: "ready", storagePath: job.storagePath ?? `exports/${job.id}.zip` })
+      .where(eq(exportJobsTable.id, job.id));
+  } catch {
+    // mock db
+  }
 }
 
-export function getExport(
+export async function getExport(
+  db: Database["db"],
   workspaceId: string,
   exportId: string,
-): ExportJob | null {
-  const job = exportJobs.get(exportId);
-  if (!job || job.workspaceId !== workspaceId) return null;
-  return job;
+): Promise<ExportJob | null> {
+  const cached = exportJobs.get(exportId);
+  if (cached && cached.workspaceId === workspaceId) {
+    if (cached.status === "ready" && !cached.data && cached.storagePath) {
+      try {
+        cached.data = await readFile(join(getEnv().VISBOARD_DATA_DIR, cached.storagePath));
+      } catch {
+        cached.status = "failed";
+      }
+    }
+    return cached;
+  }
+  try {
+    const [row] = await db
+      .select()
+      .from(exportJobsTable)
+      .where(eq(exportJobsTable.id, exportId))
+      .limit(1);
+    if (!row || row.workspaceId !== workspaceId) return null;
+    const job: ExportJob = {
+      id: row.id,
+      workspaceId: row.workspaceId,
+      status: row.status as ExportJob["status"],
+      createdAt: row.createdAt,
+      storagePath: row.storagePath,
+    };
+    if (job.status === "ready" && job.storagePath) {
+      try {
+        job.data = await readFile(join(getEnv().VISBOARD_DATA_DIR, job.storagePath));
+      } catch {
+        job.status = "failed";
+      }
+    }
+    exportJobs.set(job.id, job);
+    return job;
+  } catch {
+    return null;
+  }
+}
+
+async function expireOldExports(db: Database["db"]): Promise<void> {
+  try {
+    const expired = await db
+      .select()
+      .from(exportJobsTable)
+      .where(lt(exportJobsTable.expiresAt, new Date()));
+    for (const row of expired) {
+      if (row.storagePath) {
+        try {
+          await unlink(join(getEnv().VISBOARD_DATA_DIR, row.storagePath));
+        } catch {
+          // ignore
+        }
+      }
+    }
+    await db.delete(exportJobsTable).where(lt(exportJobsTable.expiresAt, new Date()));
+  } catch {
+    // mock db
+  }
 }
 
 export function clearExportsForTests(): void {

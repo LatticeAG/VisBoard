@@ -1,10 +1,6 @@
 import { z } from "zod";
 import { ID_PATTERNS } from "../ids.js";
-import {
-  boardDocumentIdSchema,
-  boardIdSchema,
-  boardRevisionIdSchema,
-} from "./board.js";
+import { boardDocumentIdSchema, boardIdSchema, boardRevisionIdSchema } from "./board.js";
 import { timestampSchema } from "./common.js";
 
 export const boardBlockIdSchema = z.string().regex(ID_PATTERNS.boardBlock);
@@ -34,11 +30,7 @@ export const blockTypeSchema = z.enum([
   "core.timeline",
 ]);
 
-export const blockVisibilitySchema = z.enum([
-  "board",
-  "restricted",
-  "private",
-]);
+export const blockVisibilitySchema = z.enum(["board", "restricted", "private"]);
 export const blockLifecycleStateSchema = z.enum(["active", "archived"]);
 
 export const blockAttributesSchema = z.record(z.unknown()).default({});
@@ -168,7 +160,11 @@ export const BLOCK_TYPE_REGISTRY: Record<BlockType, BlockDefinition> = {
     ...defaultDefinition,
     renderer: "kanban-column",
     collaborative_fields: [],
-    protected_fields: ["attributes.state_key", "attributes.transition_policy", "attributes.wip_limit"],
+    protected_fields: [
+      "attributes.state_key",
+      "attributes.transition_policy",
+      "attributes.wip_limit",
+    ],
     required_capabilities: ["workflow.transition"],
   },
   "core.kanban_card": {

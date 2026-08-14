@@ -1,16 +1,18 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
+import { z } from "zod";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
-import { assertWorkspaceAccess } from "../lib/helpers.js";
-import { getWorkspaceBySlug } from "../services/workspace.js";
-import { getProjectBySlug } from "../services/project.js";
+import { assertWorkspaceAccess, reqParam } from "../lib/helpers.js";
+import { readJson } from "../lib/json.js";
 import {
   appendProjectEvent,
   listProjectEvents,
   pollProjectEvents,
   subscribeToProjectEvents,
 } from "../services/event.js";
+import { getProjectBySlug } from "../services/project.js";
+import { getWorkspaceBySlug } from "../services/workspace.js";
 
 export const eventRoutes = new Hono();
 
@@ -18,14 +20,17 @@ eventRoutes.use("*", authMiddleware);
 
 eventRoutes.post("/", requireScope("write:events", "admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
-  const body = await c.req.json<{
-    type: string;
-    resource_type?: string;
-    resource_id?: string;
-    payload?: Record<string, unknown>;
-  }>();
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const body = await readJson(
+    c,
+    z.object({
+      type: z.string().min(1),
+      resource_type: z.string().optional(),
+      resource_id: z.string().optional(),
+      payload: z.record(z.unknown()).optional(),
+    }),
+  );
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -39,8 +44,8 @@ eventRoutes.post("/", requireScope("write:events", "admin"), async (c) => {
 
 eventRoutes.get("/", requireScope("read"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -65,8 +70,8 @@ eventRoutes.get("/", requireScope("read"), async (c) => {
 
 eventRoutes.get("/stream", requireScope("read"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
   const since = c.req.query("since");
   const types = c.req.query("types");
   const { db } = getDb();

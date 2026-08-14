@@ -57,9 +57,7 @@ export class BoardsResource {
   }
 
   get(workspaceId: string, boardId: string): Promise<Board> {
-    return this.http.request<Board>(
-      `/workspaces/${workspaceId}/boards/${boardId}`,
-    );
+    return this.http.request<Board>(`/workspaces/${workspaceId}/boards/${boardId}`);
   }
 
   update(
@@ -68,14 +66,11 @@ export class BoardsResource {
     input: UpdateBoardInput,
     options: BoardMutationOptions = {},
   ): Promise<Board> {
-    return this.http.request<Board>(
-      `/workspaces/${workspaceId}/boards/${boardId}`,
-      {
-        method: "PATCH",
-        body: input,
-        headers: mutationHeaders(options),
-      },
-    );
+    return this.http.request<Board>(`/workspaces/${workspaceId}/boards/${boardId}`, {
+      method: "PATCH",
+      body: input,
+      headers: mutationHeaders(options),
+    });
   }
 
   getState(
@@ -83,17 +78,12 @@ export class BoardsResource {
     boardId: string,
     options: { atRevision?: string } = {},
   ): Promise<BoardState> {
-    return this.http.request<BoardState>(
-      `/workspaces/${workspaceId}/boards/${boardId}/state`,
-      { query: { at_revision: options.atRevision } },
-    );
+    return this.http.request<BoardState>(`/workspaces/${workspaceId}/boards/${boardId}/state`, {
+      query: { at_revision: options.atRevision },
+    });
   }
 
-  getBlock(
-    workspaceId: string,
-    boardId: string,
-    blockId: string,
-  ): Promise<BoardBlock> {
+  getBlock(workspaceId: string, boardId: string, blockId: string): Promise<BoardBlock> {
     return this.http.request<BoardBlock>(
       `/workspaces/${workspaceId}/boards/${boardId}/blocks/${blockId}`,
     );
@@ -137,26 +127,16 @@ export class BoardsResource {
     );
   }
 
-  getRevision(
-    workspaceId: string,
-    boardId: string,
-    revisionId: string,
-  ): Promise<BoardRevision> {
+  getRevision(workspaceId: string, boardId: string, revisionId: string): Promise<BoardRevision> {
     return this.http.request<BoardRevision>(
       `/workspaces/${workspaceId}/boards/${boardId}/revisions/${revisionId}`,
     );
   }
 
-  diff(
-    workspaceId: string,
-    boardId: string,
-    from: string,
-    to: string,
-  ): Promise<BoardDiff> {
-    return this.http.request<BoardDiff>(
-      `/workspaces/${workspaceId}/boards/${boardId}/diff`,
-      { query: { from, to } },
-    );
+  diff(workspaceId: string, boardId: string, from: string, to: string): Promise<BoardDiff> {
+    return this.http.request<BoardDiff>(`/workspaces/${workspaceId}/boards/${boardId}/diff`, {
+      query: { from, to },
+    });
   }
 
   restore(
@@ -180,14 +160,19 @@ export class BoardsResource {
     boardId: string,
     input: { template_version_id: string; variables?: Record<string, unknown> },
     options: BoardMutationOptions = {},
-  ): Promise<{ installation: Record<string, unknown>; blocks: BoardBlock[]; revision: BoardRevision }> {
-    return this.http.request<{ installation: Record<string, unknown>; blocks: BoardBlock[]; revision: BoardRevision }>(
-      `/workspaces/${workspaceId}/boards/${boardId}/template-installations`,
-      {
-        method: "POST",
-        body: input,
-        headers: mutationHeaders(options),
-      },
-    );
+  ): Promise<{
+    installation: Record<string, unknown>;
+    blocks: BoardBlock[];
+    revision: BoardRevision;
+  }> {
+    return this.http.request<{
+      installation: Record<string, unknown>;
+      blocks: BoardBlock[];
+      revision: BoardRevision;
+    }>(`/workspaces/${workspaceId}/boards/${boardId}/template-installations`, {
+      method: "POST",
+      body: input,
+      headers: mutationHeaders(options),
+    });
   }
 }

@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { AppHeader } from '@/components/app-header';
-import { InlineAlert } from '@/components/toast';
-import { api } from '@/lib/api-client';
-import type { Project, EventRecord } from '@visboard/sdk';
+import { AppHeader } from "@/components/app-header";
+import { InlineAlert } from "@/components/toast";
+import { api } from "@/lib/api-client";
+import type { EventRecord, Project } from "@visboard/sdk";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function WorkspaceDashboardPage() {
   const params = useParams();
@@ -52,25 +52,21 @@ export default function WorkspaceDashboardPage() {
         <main className="flex-1 overflow-y-auto p-6">
           {mock && (
             <InlineAlert
-              message="Demo mode — showing mock data (?demo=1)"
+              message="Demo mode: showing mock data (?demo=1)"
               variant="info"
               className="mb-4"
             />
           )}
 
-          {error && (
-            <InlineAlert message={error} variant="error" className="mb-4" />
-          )}
+          {error && <InlineAlert message={error} variant="error" className="mb-4" />}
 
-          <h2 className="mb-4 font-mono text-xs uppercase tracking-wider text-muted">
-            Projects
-          </h2>
+          <h2 className="mb-4 font-mono text-xs uppercase tracking-wider text-muted">Projects</h2>
 
           {loading ? (
             <p className="font-mono text-sm text-muted">Loading…</p>
           ) : projects.length === 0 ? (
             <p className="font-mono text-sm text-muted">
-              No projects. Create one with{' '}
+              No projects. Create one with{" "}
               <code className="text-accent">visboard project create</code>.
             </p>
           ) : (
@@ -85,11 +81,11 @@ export default function WorkspaceDashboardPage() {
                       <span className="font-mono text-sm text-text">{project.name}</span>
                       <span
                         className={`font-mono text-xs ${
-                          project.status === 'active'
-                            ? 'text-success'
-                            : project.status === 'archived'
-                              ? 'text-muted'
-                              : 'text-accent'
+                          project.status === "active"
+                            ? "text-success"
+                            : project.status === "archived"
+                              ? "text-muted"
+                              : "text-accent"
                         }`}
                       >
                         {project.status}
@@ -114,10 +110,7 @@ export default function WorkspaceDashboardPage() {
           </div>
           <div className="overflow-y-auto">
             {events.map((evt) => (
-              <div
-                key={evt.id}
-                className="border-b border-border px-3 py-2 font-mono text-xs"
-              >
+              <div key={evt.id} className="border-b border-border px-3 py-2 font-mono text-xs">
                 <span className="text-accent">{evt.type}</span>
                 <span className="ml-2 text-muted">
                   {new Date(evt.created_at).toLocaleTimeString()}

@@ -1,6 +1,6 @@
 import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { notes } from "./notes";
-import { projects } from "./projects";
+import { notes } from "./notes.js";
+import { projects } from "./projects.js";
 
 export const checklists = pgTable("checklists", {
   id: text("id").primaryKey(),

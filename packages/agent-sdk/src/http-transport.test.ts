@@ -1,9 +1,6 @@
-import { describe, expect, it } from "vitest";
 import type { RequestOptions } from "@visboard/sdk";
-import {
-  HttpAgentTransport,
-  type AgentHttpClient,
-} from "./index.js";
+import { describe, expect, it } from "vitest";
+import { type AgentHttpClient, HttpAgentTransport } from "./index.js";
 
 class RecordingClient implements AgentHttpClient {
   readonly baseUrl = "https://visboard.example/v1";
@@ -33,8 +30,7 @@ describe("HttpAgentTransport", () => {
 
     expect(client.calls).toEqual([
       {
-        path:
-          "https://visboard.example/v2/workspaces/ws_01/boards/brd_01/agent-workspaces/aws_01/files/src/index.ts",
+        path: "https://visboard.example/v2/workspaces/ws_01/boards/brd_01/agent-workspaces/aws_01/files/src/index.ts",
         options: {
           method: "PUT",
           body: {
@@ -99,9 +95,30 @@ describe("HttpAgentTransport", () => {
     });
 
     expect(client.calls[0]).toEqual({
-      path:
-        "https://visboard.example/v2/workspaces/ws_01/boards/brd_01/agent-workspaces/aws_01/files/docs/with%20space.md",
-      options: { query: access },
+      path: "https://visboard.example/v2/workspaces/ws_01/boards/brd_01/agent-workspaces/aws_01/files/docs/with%20space.md",
+      options: {
+        headers: {
+          "X-Visboard-Run-Id": access.run_id,
+          "X-Visboard-Lease-Id": access.lease_id,
+        },
+      },
     });
+    const url = client.calls[0]?.path ?? "";
+    expect(url).not.toContain("run_id=");
+    expect(url).not.toContain("lease_id=");
+
+    await transport.listFiles({
+      board_id: "brd_01",
+      agent_workspace_id: "aws_01",
+      access,
+    });
+    const listCall = client.calls[1];
+    expect(listCall?.options?.headers).toEqual({
+      "X-Visboard-Run-Id": access.run_id,
+      "X-Visboard-Lease-Id": access.lease_id,
+    });
+    const listUrl = `${listCall?.path ?? ""}?${JSON.stringify(listCall?.options?.query ?? {})}`;
+    expect(listUrl).not.toMatch(/run_id/);
+    expect(listUrl).not.toMatch(/lease_id/);
   });
 });

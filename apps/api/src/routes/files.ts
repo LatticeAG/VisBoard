@@ -1,15 +1,9 @@
 import { Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
-import { assertWorkspaceAccess } from "../lib/helpers.js";
+import { assertWorkspaceAccess, reqParam } from "../lib/helpers.js";
+import { deleteFile, getFile, listFiles, readFileContent, uploadFile } from "../services/file.js";
 import { getWorkspaceBySlug } from "../services/workspace.js";
-import {
-  deleteFile,
-  getFile,
-  listFiles,
-  readFileContent,
-  uploadFile,
-} from "../services/file.js";
 
 export const fileRoutes = new Hono();
 
@@ -17,8 +11,8 @@ fileRoutes.use("*", authMiddleware);
 
 fileRoutes.get("/", requireScope("read"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -32,8 +26,8 @@ fileRoutes.get("/", requireScope("read"), async (c) => {
 
 fileRoutes.post("/", requireScope("write:files", "admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -60,9 +54,9 @@ fileRoutes.post("/", requireScope("write:files", "admin"), async (c) => {
 
 fileRoutes.get("/:id", requireScope("read"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
-  const fileId = c.req.param("id")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const fileId = reqParam(c, "id");
   const download = c.req.query("download");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
@@ -73,13 +67,7 @@ fileRoutes.get("/:id", requireScope("read"), async (c) => {
   assertWorkspaceAccess(auth, ws.id);
 
   if (download === "1") {
-    const { file, data } = await readFileContent(
-      db,
-      wsSlug,
-      projectSlug,
-      fileId,
-      auth,
-    );
+    const { file, data } = await readFileContent(db, wsSlug, projectSlug, fileId, auth);
     return new Response(data, {
       headers: {
         "Content-Type": file.mimeType,
@@ -104,9 +92,9 @@ fileRoutes.get("/:id", requireScope("read"), async (c) => {
 
 fileRoutes.delete("/:id", requireScope("write:files", "admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
-  const fileId = c.req.param("id")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const fileId = reqParam(c, "id");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {

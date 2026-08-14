@@ -1,10 +1,10 @@
 import { events } from "@visboard/db";
-import { PREFIX, createId } from "@visboard/shared";
-import { and, eq, gt, inArray } from "drizzle-orm";
 import type { Database } from "@visboard/db";
+import { PREFIX, createId } from "@visboard/shared";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
 import type { AuthPrincipal } from "../auth/middleware.js";
 import { actorFromAuth } from "../lib/helpers.js";
-import { parseLimit, paginate } from "../lib/pagination.js";
+import { paginate, parseLimit } from "../lib/pagination.js";
 import { getProjectBySlug } from "./project.js";
 
 type FormattedEvent = ReturnType<typeof formatEvent>;
@@ -13,10 +13,7 @@ type EventListener = (event: FormattedEvent) => void;
 
 const projectListeners = new Map<string, Set<EventListener>>();
 
-export function subscribeToProjectEvents(
-  projectId: string,
-  listener: EventListener,
-): () => void {
+export function subscribeToProjectEvents(projectId: string, listener: EventListener): () => void {
   let listeners = projectListeners.get(projectId);
   if (!listeners) {
     listeners = new Set();
@@ -31,7 +28,62 @@ export function subscribeToProjectEvents(
   };
 }
 
+const recentEmitted = new Set<string>();
+
+export function dispatchProjectEventFromNotify(payload: unknown): void {
+  let projectId: string | undefined;
+  let event: FormattedEvent | undefined;
+  if (typeof payload === "string") {
+    try {
+      const parsed = JSON.parse(payload) as { project_id?: string; event?: FormattedEvent };
+      projectId = parsed.project_id;
+      event = parsed.event;
+    } catch {
+      projectId = payload;
+    }
+  } else if (typeof payload === "object" && payload !== null) {
+    const parsed = payload as { project_id?: string; event?: FormattedEvent };
+    projectId = parsed.project_id;
+    event = parsed.event;
+  }
+  if (!projectId) return;
+  if (event) {
+    emitProjectEvent(projectId, event);
+    return;
+  }
+  void fanoutProjectEvents(projectId);
+}
+
+export async function notifyProjectEvent(projectId: string, db?: Database["db"]): Promise<void> {
+  try {
+    const store = db ?? (await import("../db.js")).getDb().db;
+    await store.execute(
+      sql`select pg_notify('visboard_events', json_build_object('project_id', ${projectId}::text)::text)`,
+    );
+  } catch {
+    // Event is already durable. Fan-out is best-effort.
+  }
+}
+
+async function fanoutProjectEvents(projectId: string): Promise<void> {
+  try {
+    const { getDb } = await import("../db.js");
+    const { db } = getDb();
+    const rows = await db.select().from(events).where(eq(events.projectId, projectId));
+    const last = rows.at(-1);
+    if (last) emitProjectEvent(projectId, formatEvent(last));
+  } catch {
+    // tests or missing db
+  }
+}
+
 function emitProjectEvent(projectId: string, event: FormattedEvent) {
+  if (recentEmitted.has(event.id)) return;
+  recentEmitted.add(event.id);
+  if (recentEmitted.size > 2048) {
+    const oldest = recentEmitted.values().next().value;
+    if (oldest) recentEmitted.delete(oldest);
+  }
   const listeners = projectListeners.get(projectId);
   if (!listeners) return;
   for (const listener of listeners) {
@@ -72,9 +124,11 @@ export async function createEvent(
       createdAt: now,
     })
     .returning();
+  if (!event) throw new Error("Failed to create event");
 
-  const formatted = formatEvent(event!);
+  const formatted = formatEvent(event);
   emitProjectEvent(projectId, formatted);
+  await notifyProjectEvent(projectId, db);
   return formatted;
 }
 
@@ -90,12 +144,7 @@ export async function appendProjectEvent(
     payload?: Record<string, unknown>;
   },
 ) {
-  const { project } = await getProjectBySlug(
-    db,
-    workspaceSlug,
-    projectSlug,
-    auth,
-  );
+  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
   return createEvent(db, project.id, auth, input);
 }
 
@@ -111,12 +160,7 @@ export async function listProjectEvents(
   },
   auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(
-    db,
-    workspaceSlug,
-    projectSlug,
-    auth,
-  );
+  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
   const limit = parseLimit(query.limit) + 1;
 
   const conditions = [eq(events.projectId, project.id)];

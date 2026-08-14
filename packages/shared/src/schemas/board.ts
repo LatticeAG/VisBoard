@@ -8,11 +8,7 @@ export const boardDocumentIdSchema = z.string().regex(ID_PATTERNS.boardDocument)
 export const boardRevisionIdSchema = z.string().regex(ID_PATTERNS.boardRevision);
 
 export const boardStatusSchema = z.enum(["draft", "active", "archived"]);
-export const boardDocumentStateSchema = z.enum([
-  "active",
-  "superseded",
-  "read_only",
-]);
+export const boardDocumentStateSchema = z.enum(["active", "superseded", "read_only"]);
 export const boardRevisionTriggerSchema = z.enum([
   "board_created",
   "manual",

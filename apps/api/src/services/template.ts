@@ -1,31 +1,27 @@
 import { createHash } from "node:crypto";
 import {
+  type Database,
   boardTemplates,
   boards,
   templateBlockMappings,
   templateInstallations,
   templateVersions,
-  type Database,
 } from "@visboard/db";
 import {
   BUILT_IN_TEMPLATES,
+  type CreateTemplateInput,
+  type CreateTemplateVersionInput,
+  type InstallTemplateInput,
   PREFIX,
   createId,
   slugify,
   templateManifestSchema,
-  type CreateTemplateInput,
-  type CreateTemplateVersionInput,
-  type InstallTemplateInput,
 } from "@visboard/shared";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import type { AuthPrincipal } from "../auth/middleware.js";
-import { actorFromAuth } from "../lib/helpers.js";
 import { badRequest, conflict, notFound } from "../lib/errors.js";
-import {
-  captureBoardRevision,
-  createBoardBlock,
-  formatBoardBlock,
-} from "./board.js";
+import { actorFromAuth } from "../lib/helpers.js";
+import { captureBoardRevision, createBoardBlock, formatBoardBlock } from "./board.js";
 
 type TemplateRecord = typeof boardTemplates.$inferSelect;
 type TemplateVersionRecord = typeof templateVersions.$inferSelect;
@@ -88,16 +84,11 @@ function formatInstallation(installation: InstallationRecord) {
  * deployment run a separate seed step.
  */
 async function ensureBuiltInTemplates(db: Database["db"]) {
-  const existing = await db.select().from(boardTemplates);
-  const systemSlugs = new Set(
-    existing
-      .filter(
-        (template) =>
-          template.scope === "system" &&
-          template.workspaceId === null,
-      )
-      .map((template) => template.slug),
-  );
+  const existing = await db
+    .select()
+    .from(boardTemplates)
+    .where(and(eq(boardTemplates.scope, "system"), isNull(boardTemplates.workspaceId)));
+  const systemSlugs = new Set(existing.map((template) => template.slug));
 
   for (const builtIn of BUILT_IN_TEMPLATES) {
     if (systemSlugs.has(builtIn.slug)) continue;
@@ -129,19 +120,13 @@ async function ensureBuiltInTemplates(db: Database["db"]) {
 }
 
 async function getTemplateRecord(db: Database["db"], templateId: string) {
-  const rows = await db
-    .select()
-    .from(boardTemplates)
-    .where(eq(boardTemplates.id, templateId));
+  const rows = await db.select().from(boardTemplates).where(eq(boardTemplates.id, templateId));
   const template = rows.find((row) => row.id === templateId);
   if (!template) throw notFound(`Template '${templateId}' not found`);
   return template;
 }
 
-async function getTemplateVersionRecord(
-  db: Database["db"],
-  templateVersionId: string,
-) {
+async function getTemplateVersionRecord(db: Database["db"], templateVersionId: string) {
   const rows = await db
     .select()
     .from(templateVersions)
@@ -152,26 +137,22 @@ async function getTemplateVersionRecord(
   return { template, version };
 }
 
-export async function listTemplates(
-  db: Database["db"],
-  workspaceIds: readonly string[],
-) {
+export async function listTemplates(db: Database["db"], workspaceIds: readonly string[]) {
   await ensureBuiltInTemplates(db);
-  const rows = await db.select().from(boardTemplates);
-  return rows
-    .filter(
-      (template) =>
-        template.scope === "system" ||
-        template.workspaceId === null ||
-        workspaceIds.includes(template.workspaceId),
-    )
-    .map(formatTemplate);
+  const tenantFilter =
+    workspaceIds.length > 0
+      ? inArray(boardTemplates.workspaceId, [...workspaceIds])
+      : eq(boardTemplates.scope, "system");
+  const rows = await db
+    .select()
+    .from(boardTemplates)
+    .where(
+      or(eq(boardTemplates.scope, "system"), isNull(boardTemplates.workspaceId), tenantFilter),
+    );
+  return rows.map(formatTemplate);
 }
 
-export async function getTemplate(
-  db: Database["db"],
-  templateId: string,
-) {
+export async function getTemplate(db: Database["db"], templateId: string) {
   const template = await getTemplateRecord(db, templateId);
   const versions = await db
     .select()
@@ -202,10 +183,7 @@ export async function createTemplate(
     .where(
       workspaceId === null
         ? and(isNull(boardTemplates.workspaceId), eq(boardTemplates.slug, slug))
-        : and(
-            eq(boardTemplates.workspaceId, workspaceId),
-            eq(boardTemplates.slug, slug),
-          ),
+        : and(eq(boardTemplates.workspaceId, workspaceId), eq(boardTemplates.slug, slug)),
     );
   if (existing.some((template) => template.workspaceId === workspaceId && template.slug === slug)) {
     throw conflict(`Template slug '${slug}' already exists`);
@@ -241,9 +219,11 @@ export async function createTemplate(
       createdAt: now,
     })
     .returning();
+  if (!template) throw new Error("Failed to create template");
+  if (!version) throw new Error("Failed to create template version");
   return {
-    ...formatTemplate(template!),
-    version: formatTemplateVersion(version!),
+    ...formatTemplate(template),
+    version: formatTemplateVersion(version),
   };
 }
 
@@ -268,8 +248,7 @@ export async function createTemplateVersion(
     );
   if (
     existing.some(
-      (version) =>
-        version.templateId === template.id && version.version === input.version,
+      (version) => version.templateId === template.id && version.version === input.version,
     )
   ) {
     throw conflict(`Template version '${input.version}' already exists`);
@@ -289,13 +268,11 @@ export async function createTemplateVersion(
       createdAt: new Date(),
     })
     .returning();
-  return formatTemplateVersion(version!);
+  if (!version) throw new Error("Failed to create template version");
+  return formatTemplateVersion(version);
 }
 
-function substituteTemplateVariables(
-  value: unknown,
-  variables: Record<string, unknown>,
-): unknown {
+function substituteTemplateVariables(value: unknown, variables: Record<string, unknown>): unknown {
   if (typeof value === "string") {
     return value.replace(/\{\{([a-z][a-z0-9_]*)\}\}/g, (_, key: string) => {
       const replacement = variables[key];
@@ -323,10 +300,7 @@ export async function installTemplate(
   auth: AuthPrincipal,
   input: InstallTemplateInput,
 ) {
-  const { template, version } = await getTemplateVersionRecord(
-    db,
-    input.template_version_id,
-  );
+  const { template, version } = await getTemplateVersionRecord(db, input.template_version_id);
   if (template.workspaceId && template.workspaceId !== workspaceId) {
     throw conflict("Template belongs to a different workspace");
   }
@@ -345,7 +319,11 @@ export async function installTemplate(
   const manifest = templateManifestSchema.parse(version.manifest);
   const variables = asRecord(input.variables);
   for (const parameter of manifest.parameters) {
-    if (parameter.required && variables[parameter.key] === undefined && parameter.default === undefined) {
+    if (
+      parameter.required &&
+      variables[parameter.key] === undefined &&
+      parameter.default === undefined
+    ) {
       throw badRequest(`Template parameter '${parameter.key}' is required`);
     }
   }
@@ -364,6 +342,7 @@ export async function installTemplate(
       installedAt: now,
     })
     .returning();
+  if (!installation) throw new Error("Failed to create template installation");
 
   const pending = [...manifest.blocks];
   const blockByNodeKey = new Map<string, string>();
@@ -371,10 +350,12 @@ export async function installTemplate(
   while (pending.length > 0) {
     let createdInPass = false;
     for (let index = 0; index < pending.length; ) {
-      const node = pending[index]!;
-      const parentBlockId = node.parent_key
-        ? blockByNodeKey.get(node.parent_key)
-        : null;
+      const node = pending[index];
+      if (!node) {
+        index += 1;
+        continue;
+      }
+      const parentBlockId = node.parent_key ? blockByNodeKey.get(node.parent_key) : null;
       if (node.parent_key && !parentBlockId) {
         index += 1;
         continue;
@@ -394,7 +375,7 @@ export async function installTemplate(
       createdBlocks.push(block);
       await db.insert(templateBlockMappings).values({
         id: createId(PREFIX.templateBlockMapping),
-        installationId: installation!.id,
+        installationId: installation.id,
         templateNodeKey: node.key,
         blockId: block.id,
         createdAt: now,
@@ -409,7 +390,7 @@ export async function installTemplate(
 
   await db
     .update(boards)
-    .set({ templateInstallationId: installation!.id, updatedAt: now })
+    .set({ templateInstallationId: installation.id, updatedAt: now })
     .where(eq(boards.id, board.id));
   const revision = await captureBoardRevision(db, board.id, {
     trigger: "template_installed",
@@ -419,12 +400,12 @@ export async function installTemplate(
     payload: {
       template_id: template.id,
       template_version_id: version.id,
-      installation_id: installation!.id,
+      installation_id: installation.id,
     },
   });
 
   return {
-    installation: formatInstallation(installation!),
+    installation: formatInstallation(installation),
     blocks: createdBlocks.map(formatBoardBlock),
     revision,
   };

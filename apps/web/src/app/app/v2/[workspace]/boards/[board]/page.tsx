@@ -1,11 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import type { BoardBlock, BoardRevision, BoardState } from '@visboard/sdk';
-import { AppHeader } from '@/components/app-header';
-import { BoardCanvas } from '@/components/board-canvas';
-import { InlineAlert } from '@/components/toast';
-import { getV2Client } from '@/lib/v2-client';
+import { AppHeader } from "@/components/app-header";
+import { BoardCanvas } from "@/components/board-canvas";
+import { HandoffReview } from "@/components/handoff-review";
+import { InlineAlert } from "@/components/toast";
+import { getV2Client } from "@/lib/v2-client";
+import type { BoardBlock, BoardRevision, BoardState } from "@visboard/sdk";
+import { useEffect, useState } from "react";
 
 type RouteParams = { workspace: string; board: string };
 
@@ -14,7 +15,7 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
   const [state, setState] = useState<BoardState | null>(null);
   const [revisions, setRevisions] = useState<BoardRevision[]>([]);
   const [selectedBlock, setSelectedBlock] = useState<BoardBlock | null>(null);
-  const [selectedRevision, setSelectedRevision] = useState<string>('');
+  const [selectedRevision, setSelectedRevision] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,17 +36,18 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
       ]);
       setState(nextState);
       setRevisions(nextRevisions);
-      setSelectedRevision(nextState.head_revision?.id ?? '');
+      setSelectedRevision(nextState.head_revision?.id ?? "");
       setSelectedBlock((current) =>
-        current ? nextState.blocks.find((block) => block.id === current.id) ?? null : null,
+        current ? (nextState.blocks.find((block) => block.id === current.id) ?? null) : null,
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load board');
+      setError(cause instanceof Error ? cause.message : "Unable to load board");
     } finally {
       setLoading(false);
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: load is recreated each render; route ids are the trigger
   useEffect(() => {
     void load();
   }, [route?.workspace, route?.board]);
@@ -57,12 +59,12 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
       await getV2Client().boards.captureRevision(
         route.workspace,
         route.board,
-        { label: 'Manual checkpoint' },
+        { label: "Manual checkpoint" },
         { idempotencyKey: crypto.randomUUID(), expectedDocumentId: state.document.id },
       );
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to capture revision');
+      setError(cause instanceof Error ? cause.message : "Unable to capture revision");
     } finally {
       setBusy(false);
     }
@@ -70,7 +72,9 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
 
   const restore = async () => {
     if (!route || !state || !selectedRevision) return;
-    const confirmed = window.confirm('Restore this revision into a new board document epoch? Current history remains available.');
+    const confirmed = window.confirm(
+      "Restore this revision into a new board document epoch? Current history remains available.",
+    );
     if (!confirmed) return;
     setBusy(true);
     try {
@@ -80,13 +84,13 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
         {
           revision_id: selectedRevision,
           expected_document_id: state.document.id,
-          reason: 'Restored from the V3 board timeline',
+          reason: "Restored from the V3 board timeline",
         },
         { idempotencyKey: crypto.randomUUID(), expectedDocumentId: state.document.id },
       );
       await load();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to restore revision');
+      setError(cause instanceof Error ? cause.message : "Unable to restore revision");
     } finally {
       setBusy(false);
     }
@@ -96,7 +100,9 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
     return (
       <>
         <AppHeader title="Board" />
-        <main className="flex flex-1 items-center justify-center font-mono text-sm text-muted">Loading board</main>
+        <main className="flex flex-1 items-center justify-center font-mono text-sm text-muted">
+          Loading board
+        </main>
       </>
     );
   }
@@ -105,11 +111,11 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
     <>
       <AppHeader
         breadcrumb={[
-          { label: 'V3 boards', href: route ? `/app/v2/${route.workspace}` : undefined },
-          { label: state?.board.name ?? 'Board' },
+          { label: "V3 boards", href: route ? `/app/v2/${route.workspace}` : undefined },
+          { label: state?.board.name ?? "Board" },
         ]}
       />
-      <main className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <main className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden lg:grid-cols-[minmax(0,1fr)_18rem_320px]">
         <section className="min-h-0 overflow-y-auto p-4 md:p-6">
           {error && <InlineAlert message={error} variant="error" className="mb-4" />}
           {state && (
@@ -118,7 +124,7 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
                 <div>
                   <h1 className="font-mono text-xl text-text">{state.board.name}</h1>
                   <p className="mt-1 font-mono text-xs text-muted">
-                    {state.board.description || 'A shared board with durable revisions.'}
+                    {state.board.description || "A shared board with durable revisions."}
                   </p>
                 </div>
                 <div className="font-mono text-[10px] text-muted">
@@ -135,7 +141,9 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
         </section>
 
         <aside className="min-h-0 border-l border-border bg-surface p-4 lg:overflow-y-auto">
-          <h2 className="font-mono text-xs uppercase tracking-wide text-muted">Revision timeline</h2>
+          <h2 className="font-mono text-xs uppercase tracking-wide text-muted">
+            Revision timeline
+          </h2>
           <p className="mt-2 font-mono text-xs leading-5 text-muted">
             Checkpoints preserve block topology and content before a restore creates a new epoch.
           </p>
@@ -175,7 +183,9 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
 
           {selectedBlock && (
             <div className="mt-6 border-t border-border pt-4">
-              <h2 className="font-mono text-xs uppercase tracking-wide text-muted">Selected block</h2>
+              <h2 className="font-mono text-xs uppercase tracking-wide text-muted">
+                Selected block
+              </h2>
               <p className="mt-2 break-all font-mono text-xs text-text">{selectedBlock.id}</p>
               <p className="mt-1 font-mono text-xs text-muted">{selectedBlock.type}</p>
               <p className="mt-3 font-mono text-xs leading-5 text-muted">
@@ -184,6 +194,14 @@ export default function BoardPage({ params }: { params: Promise<RouteParams> }) 
             </div>
           )}
         </aside>
+        {route && (
+          <HandoffReview
+            workspaceId={route.workspace}
+            boardId={route.board}
+            headRevisionId={state?.head_revision?.id ?? null}
+            onChanged={() => void load()}
+          />
+        )}
       </main>
     </>
   );

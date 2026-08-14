@@ -78,9 +78,7 @@ describe("SyncEngine", () => {
       resource_id: "blk_1",
       external_id: "acme/repo#1",
       direction: "bidirectional",
-      field_mappings: [
-        { local_field: "state", external_field: "state", ownership: "external" },
-      ],
+      field_mappings: [{ local_field: "state", external_field: "state", ownership: "external" }],
       baseline: { state: "open" },
     });
     const rawBody = new TextEncoder().encode(
@@ -126,9 +124,7 @@ describe("SyncEngine", () => {
       resource_id: "blk_2",
       external_id: "lin-2",
       direction: "outbound",
-      field_mappings: [
-        { local_field: "title", external_field: "title", ownership: "visboard" },
-      ],
+      field_mappings: [{ local_field: "title", external_field: "title", ownership: "visboard" }],
       baseline: { title: "Old" },
     });
     const stale = await engine.deliverOutbound(
@@ -137,7 +133,10 @@ describe("SyncEngine", () => {
       async () => ({ remoteVersion: "v2" }),
       1,
     );
-    expect(stale).toMatchObject({ delivered: false, reason: "Board effect generation has changed" });
+    expect(stale).toMatchObject({
+      delivered: false,
+      reason: "Board effect generation has changed",
+    });
 
     generation = 2;
     const delivered = await engine.deliverOutbound(

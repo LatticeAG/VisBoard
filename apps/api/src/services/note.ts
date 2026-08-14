@@ -1,18 +1,14 @@
 import { noteVersions, notes } from "@visboard/db";
+import type { Database } from "@visboard/db";
 import { EventType, PREFIX, createId, slugify } from "@visboard/shared";
 import { and, eq, isNull, or } from "drizzle-orm";
 import matter from "gray-matter";
-import type { Database } from "@visboard/db";
 import type { AuthPrincipal } from "../auth/middleware.js";
+import { badRequest, conflict, payloadTooLarge, preconditionFailed } from "../lib/errors.js";
 import { actorFromAuth, noteEtag } from "../lib/helpers.js";
-import {
-  badRequest,
-  conflict,
-  preconditionFailed,
-} from "../lib/errors.js";
-import { getProjectBySlug } from "./project.js";
 import { scheduleAgentsMdSync } from "./agents-md-sync.js";
 import { createEvent } from "./event.js";
+import { getProjectBySlug } from "./project.js";
 
 function parseNoteBody(input: {
   body?: string;
@@ -34,26 +30,27 @@ function parseNoteBody(input: {
   return { body: "", frontmatter: {} };
 }
 
+const NOTE_BODY_MAX_BYTES = 1_048_576;
+
+function assertNoteBodySize(body: string): void {
+  if (Buffer.byteLength(body, "utf8") > NOTE_BODY_MAX_BYTES) {
+    throw payloadTooLarge(`Note body exceeds maximum size of ${NOTE_BODY_MAX_BYTES} bytes`);
+  }
+}
+
 export async function listNotes(
   db: Database["db"],
   workspaceSlug: string,
   projectSlug: string,
   auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(
-    db,
-    workspaceSlug,
-    projectSlug,
-    auth,
-  );
+  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
   const rows = await db
     .select()
     .from(notes)
     .where(and(eq(notes.projectId, project.id), isNull(notes.deletedAt)));
 
-  return rows
-    .filter((n) => !n.isSystem)
-    .map(formatNote);
+  return rows.filter((n) => !n.isSystem).map(formatNote);
 }
 
 export async function createNote(
@@ -71,6 +68,7 @@ export async function createNote(
   const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
   const slug = input.slug ?? slugify(input.title);
   const { body, frontmatter } = parseNoteBody(input);
+  assertNoteBodySize(body);
   const actor = actorFromAuth(auth);
   const now = new Date();
   const noteId = createId(PREFIX.note);
@@ -102,6 +100,7 @@ export async function createNote(
       updatedAt: now,
     })
     .returning();
+  if (!note) throw new Error("Failed to create note");
 
   await db.insert(noteVersions).values({
     id: createId(PREFIX.noteVersion),
@@ -123,7 +122,7 @@ export async function createNote(
 
   scheduleAgentsMdSync(project.id);
 
-  return formatNote(note!);
+  return formatNote(note);
 }
 
 export async function getNote(
@@ -133,12 +132,7 @@ export async function getNote(
   noteIdOrSlug: string,
   auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(
-    db,
-    workspaceSlug,
-    projectSlug,
-    auth,
-  );
+  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
 
   const idCondition = eq(notes.id, noteIdOrSlug);
   const slugCondition = eq(notes.slug, noteIdOrSlug);
@@ -149,13 +143,7 @@ export async function getNote(
   const [note] = await db
     .select()
     .from(notes)
-    .where(
-      and(
-        eq(notes.projectId, project.id),
-        identifierCondition,
-        isNull(notes.deletedAt),
-      ),
-    )
+    .where(and(eq(notes.projectId, project.id), identifierCondition, isNull(notes.deletedAt)))
     .limit(1);
 
   if (!note) {
@@ -182,9 +170,7 @@ export async function updateNote(
   const note = await getNote(db, workspaceSlug, projectSlug, noteId, auth);
 
   if (ifMatch !== null && ifMatch !== note.version) {
-    throw preconditionFailed(
-      `Version mismatch: expected ${ifMatch}, current is ${note.version}`,
-    );
+    throw preconditionFailed(`Version mismatch: expected ${ifMatch}, current is ${note.version}`);
   }
   if (ifMatch === null) {
     throw badRequest("If-Match header is required for note updates");
@@ -194,6 +180,7 @@ export async function updateNote(
     body: input.body ?? note.body,
     frontmatter: input.frontmatter ?? (note.frontmatter as Record<string, unknown>),
   });
+  assertNoteBodySize(parsed.body);
 
   const actor = actorFromAuth(auth);
   const now = new Date();
@@ -204,10 +191,7 @@ export async function updateNote(
     .set({
       title: input.title ?? note.title,
       body: input.body !== undefined ? parsed.body : note.body,
-      frontmatter:
-        input.frontmatter !== undefined
-          ? parsed.frontmatter
-          : note.frontmatter,
+      frontmatter: input.frontmatter !== undefined ? parsed.frontmatter : note.frontmatter,
       version: newVersion,
       updatedByType: actor.actorType,
       updatedById: actor.actorId,
@@ -215,14 +199,15 @@ export async function updateNote(
     })
     .where(eq(notes.id, noteId))
     .returning();
+  if (!updated) throw new Error("Failed to update note");
 
   await db.insert(noteVersions).values({
     id: createId(PREFIX.noteVersion),
     noteId,
     version: newVersion,
-    title: updated!.title,
-    body: updated!.body,
-    frontmatter: updated!.frontmatter,
+    title: updated.title,
+    body: updated.body,
+    frontmatter: updated.frontmatter,
     createdByType: actor.actorType,
     createdById: actor.actorId,
     createdAt: now,
@@ -236,7 +221,7 @@ export async function updateNote(
 
   scheduleAgentsMdSync(note.projectId);
 
-  return formatNote(updated!);
+  return formatNote(updated);
 }
 
 export async function deleteNote(
@@ -249,10 +234,7 @@ export async function deleteNote(
   const note = await getNote(db, workspaceSlug, projectSlug, noteId, auth);
   const now = new Date();
 
-  await db
-    .update(notes)
-    .set({ deletedAt: now, updatedAt: now })
-    .where(eq(notes.id, noteId));
+  await db.update(notes).set({ deletedAt: now, updatedAt: now }).where(eq(notes.id, noteId));
 
   await createEvent(db, note.projectId, auth, {
     type: EventType.NOTE_DELETED,
@@ -271,10 +253,7 @@ export async function listNoteVersions(
   auth?: AuthPrincipal,
 ) {
   await getNote(db, workspaceSlug, projectSlug, noteId, auth);
-  const rows = await db
-    .select()
-    .from(noteVersions)
-    .where(eq(noteVersions.noteId, noteId));
+  const rows = await db.select().from(noteVersions).where(eq(noteVersions.noteId, noteId));
 
   return rows.map((v) => ({
     id: v.id,
@@ -301,9 +280,7 @@ export async function getNoteVersion(
   const [row] = await db
     .select()
     .from(noteVersions)
-    .where(
-      and(eq(noteVersions.noteId, noteId), eq(noteVersions.version, version)),
-    )
+    .where(and(eq(noteVersions.noteId, noteId), eq(noteVersions.version, version)))
     .limit(1);
 
   if (!row) {

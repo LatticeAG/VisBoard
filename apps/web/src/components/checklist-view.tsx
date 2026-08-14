@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import type { ChecklistWithItems } from '@visboard/sdk';
+import type { ChecklistWithItems } from "@visboard/sdk";
+import { useState } from "react";
 
 interface ChecklistViewProps {
   checklist: ChecklistWithItems | null;
@@ -9,12 +9,8 @@ interface ChecklistViewProps {
   onAddItem?: (checklistId: string, text: string) => Promise<{ ok: boolean; error?: string }>;
 }
 
-export function ChecklistView({
-  checklist,
-  onToggleItem,
-  onAddItem,
-}: ChecklistViewProps) {
-  const [newItemText, setNewItemText] = useState('');
+export function ChecklistView({ checklist, onToggleItem, onAddItem }: ChecklistViewProps) {
+  const [newItemText, setNewItemText] = useState("");
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -38,9 +34,9 @@ export function ChecklistView({
     setAdding(false);
 
     if (result.ok) {
-      setNewItemText('');
+      setNewItemText("");
     } else {
-      setAddError(result.error ?? 'Failed to add item');
+      setAddError(result.error ?? "Failed to add item");
     }
   };
 
@@ -66,7 +62,7 @@ export function ChecklistView({
             <div className="flex-1">
               <span
                 className={`font-mono text-sm ${
-                  item.done ? 'text-muted line-through' : 'text-text'
+                  item.done ? "text-muted line-through" : "text-text"
                 }`}
               >
                 {item.text}
@@ -79,16 +75,11 @@ export function ChecklistView({
             </div>
           </li>
         ))}
-        {items.length === 0 && (
-          <li className="px-4 py-6 font-mono text-xs text-muted">No items</li>
-        )}
+        {items.length === 0 && <li className="px-4 py-6 font-mono text-xs text-muted">No items</li>}
       </ul>
 
       {onAddItem && (
-        <form
-          onSubmit={handleAddItem}
-          className="border-t border-border px-4 py-3"
-        >
+        <form onSubmit={handleAddItem} className="border-t border-border px-4 py-3">
           <div className="flex gap-2">
             <input
               type="text"
@@ -102,12 +93,10 @@ export function ChecklistView({
               disabled={adding || !newItemText.trim()}
               className="border border-accent bg-accent-dim px-3 py-1.5 font-mono text-xs text-text hover:bg-accent disabled:opacity-50"
             >
-              {adding ? '…' : 'Add'}
+              {adding ? "…" : "Add"}
             </button>
           </div>
-          {addError && (
-            <p className="mt-2 font-mono text-xs text-red-400">{addError}</p>
-          )}
+          {addError && <p className="mt-2 font-mono text-xs text-red-400">{addError}</p>}
         </form>
       )}
     </div>

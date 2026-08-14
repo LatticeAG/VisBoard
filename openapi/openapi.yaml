@@ -3,11 +3,17 @@ info:
   title: VisBoard API
   version: 0.1.0
   description: |
-    VisBoard OSS API — shared workspace for agents and humans.
-    Base path `/v1`. Errors use RFC 7807 `application/problem+json`.
+    VisBoard OSS API. Versioned REST lives under `/v1` (notes, projects, files, agents)
+    and `/v2` (boards, handoffs, automations, integrations). `/health` and `/readyz`
+    are on the process origin, not under `/v1`. Errors use RFC 7807 `application/problem+json`.
+    Event type `comment.*` is reserved; there is no comments resource in this cycle.
 servers:
   - url: http://localhost:8080/v1
-    description: Local development
+    description: Versioned V1 REST
+  - url: http://localhost:8080
+    description: Process origin for /health and /readyz
+  - url: http://localhost:8080/v2
+    description: Versioned V2 boards and agent workflows
 tags:
   - name: Health
   - name: Bootstrap
@@ -19,15 +25,18 @@ tags:
   - name: Agents
   - name: Events
   - name: Context
+  - name: Boards
 paths:
   /health:
     get:
       tags: [Health]
-      summary: Health check
+      summary: Liveness
+      servers:
+        - url: http://localhost:8080
       security: []
       responses:
         "200":
-          description: OK
+          description: Process is up
           content:
             application/json:
               schema:
@@ -35,6 +44,62 @@ paths:
                 properties:
                   status: { type: string, example: ok }
                   version: { type: string, example: "0.1.0" }
+  /readyz:
+    get:
+      tags: [Health]
+      summary: Readiness (Postgres select 1)
+      servers:
+        - url: http://localhost:8080
+      security: []
+      responses:
+        "200":
+          description: Database reachable
+        "503":
+          description: Database not reachable
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+  /workspaces/{workspace}/boards:
+    get:
+      tags: [Boards]
+      summary: List boards in a workspace
+      servers:
+        - url: http://localhost:8080/v2
+      parameters:
+        - name: workspace
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Board list. Pagination is not required in this cycle.
+        default:
+          $ref: "#/components/responses/Problem"
+  /workspaces/{workspace}/boards/{board}/handoffs/{handoff}/belief-trace:
+    get:
+      tags: [Boards]
+      summary: Read a submitted handoff belief trace
+      servers:
+        - url: http://localhost:8080/v2
+      parameters:
+        - name: workspace
+          in: path
+          required: true
+          schema: { type: string }
+        - name: board
+          in: path
+          required: true
+          schema: { type: string }
+        - name: handoff
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Frozen belief trace plus packet and trace hashes
+        default:
+          $ref: "#/components/responses/Problem"
   /bootstrap:
     post:
       tags: [Bootstrap]

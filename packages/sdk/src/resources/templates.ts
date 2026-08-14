@@ -8,9 +8,7 @@ import type {
 import type { BoardMutationOptions } from "./boards.js";
 
 function headers(options: BoardMutationOptions = {}): Record<string, string> {
-  return options.idempotencyKey
-    ? { "Idempotency-Key": options.idempotencyKey }
-    : {};
+  return options.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : {};
 }
 
 export class TemplatesResource {
@@ -38,13 +36,10 @@ export class TemplatesResource {
     input: PublishTemplateVersionInput,
     options: BoardMutationOptions = {},
   ): Promise<TemplateVersion> {
-    return this.http.request<TemplateVersion>(
-      `/templates/${templateId}/versions`,
-      {
-        method: "POST",
-        body: input,
-        headers: headers(options),
-      },
-    );
+    return this.http.request<TemplateVersion>(`/templates/${templateId}/versions`, {
+      method: "POST",
+      body: input,
+      headers: headers(options),
+    });
   }
 }

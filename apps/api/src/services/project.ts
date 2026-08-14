@@ -1,34 +1,26 @@
-import { agents, events, projects } from "@visboard/db";
+import { events, agents, projects } from "@visboard/db";
+import type { Database } from "@visboard/db";
 import { EventType, PREFIX, createId, slugify } from "@visboard/shared";
 import { and, eq, isNull } from "drizzle-orm";
-import type { Database } from "@visboard/db";
 import type { AuthPrincipal } from "../auth/middleware.js";
-import { actorFromAuth, assertAgentProjectAccess } from "../lib/helpers.js";
 import { conflict, notFound } from "../lib/errors.js";
-import { getWorkspaceBySlug } from "./workspace.js";
+import { actorFromAuth, assertAgentProjectAccess } from "../lib/helpers.js";
 import { scheduleAgentsMdSync } from "./agents-md-sync.js";
+import { getWorkspaceBySlug } from "./workspace.js";
 
-export async function listProjects(
-  db: Database["db"],
-  workspaceSlug: string,
-  auth: AuthPrincipal,
-) {
+export async function listProjects(db: Database["db"], workspaceSlug: string, auth: AuthPrincipal) {
   const ws = await getWorkspaceBySlug(db, workspaceSlug);
   if (!ws) throw notFound(`Workspace '${workspaceSlug}' not found`);
 
   const rows = await db
     .select()
     .from(projects)
-    .where(
-      and(eq(projects.workspaceId, ws.id), isNull(projects.deletedAt)),
-    );
+    .where(and(eq(projects.workspaceId, ws.id), isNull(projects.deletedAt)));
 
   if (auth.type === "agent" && auth.scopes) {
     const agentProjects = await getAgentProjectFilter(db, auth.id);
     if (agentProjects.length > 0) {
-      return rows
-        .filter((p) => agentProjects.includes(p.id))
-        .map(formatProject);
+      return rows.filter((p) => agentProjects.includes(p.id)).map(formatProject);
     }
   }
 
@@ -80,6 +72,7 @@ export async function createProject(
       updatedAt: now,
     })
     .returning();
+  if (!project) throw new Error("Failed to create project");
 
   await db.insert(events).values({
     id: createId(PREFIX.event),
@@ -95,7 +88,7 @@ export async function createProject(
 
   scheduleAgentsMdSync(projectId);
 
-  return formatProject(project!);
+  return formatProject(project);
 }
 
 export async function getProjectBySlug(
@@ -120,9 +113,7 @@ export async function getProjectBySlug(
     .limit(1);
 
   if (!project) {
-    throw notFound(
-      `Project '${projectSlug}' not found in workspace '${workspaceSlug}'`,
-    );
+    throw notFound(`Project '${projectSlug}' not found in workspace '${workspaceSlug}'`);
   }
 
   if (auth) {
@@ -152,6 +143,7 @@ export async function updateProject(
     .set({ ...input, updatedAt: now })
     .where(eq(projects.id, project.id))
     .returning();
+  if (!updated) throw new Error("Failed to update project");
 
   await db.insert(events).values({
     id: createId(PREFIX.event),
@@ -167,7 +159,7 @@ export async function updateProject(
 
   scheduleAgentsMdSync(project.id);
 
-  return formatProject(updated!);
+  return formatProject(updated);
 }
 
 export async function archiveProject(
@@ -182,11 +174,7 @@ export async function archiveProject(
 }
 
 async function getAgentProjectFilter(db: Database["db"], agentId: string) {
-  const [agent] = await db
-    .select()
-    .from(agents)
-    .where(eq(agents.id, agentId))
-    .limit(1);
+  const [agent] = await db.select().from(agents).where(eq(agents.id, agentId)).limit(1);
   return agent?.projectIds ?? [];
 }
 
