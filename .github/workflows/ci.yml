@@ -63,6 +63,9 @@ jobs:
         env:
           NODE_ENV: production
 
+      - name: Reset DB for smoke
+        run: pnpm --filter @visboard/db db:reset && pnpm --filter @visboard/db db:migrate
+
       - name: Install Playwright Chromium
         run: pnpm --filter @visboard/web exec playwright install --with-deps chromium
 
