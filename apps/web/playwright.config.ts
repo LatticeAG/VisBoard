@@ -13,7 +13,9 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: `npx next start --port ${port}`,
+    // next start is incompatible with output: standalone, so serve via
+    // dev mode for e2e (dev-server-only change; prod build untouched).
+    command: `npx next dev --port ${port}`,
     url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
