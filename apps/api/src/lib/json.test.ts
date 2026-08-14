@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { badRequest, foreignKeyReferenceDetail, isForeignKeyViolation, notFound } from "./errors.js";
+import {
+  badRequest,
+  foreignKeyReferenceDetail,
+  isForeignKeyViolation,
+  type notFound,
+} from "./errors.js";
 import { rethrowAsNotFoundIfForeignKey } from "./json.js";
 
 describe("isForeignKeyViolation", () => {
@@ -53,8 +58,9 @@ describe("rethrowAsNotFoundIfForeignKey", () => {
   });
 
   it("leaves logic bugs untouched so they still surface as 500s", () => {
-    expect(() => rethrowAsNotFoundIfForeignKey(new TypeError("undefined is not a function")))
-      .not.toThrow();
+    expect(() =>
+      rethrowAsNotFoundIfForeignKey(new TypeError("undefined is not a function")),
+    ).not.toThrow();
     expect(() => rethrowAsNotFoundIfForeignKey(badRequest("already an api error"))).not.toThrow();
   });
 });

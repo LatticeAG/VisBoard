@@ -764,7 +764,9 @@ export interface NotifyExecutorOptions {
  * (console log by default) so 'notify' automations always have a working
  * executor without external infrastructure.
  */
-export function createNotifyExecutor(options: NotifyExecutorOptions = {}): AutomationActionExecutor {
+export function createNotifyExecutor(
+  options: NotifyExecutorOptions = {},
+): AutomationActionExecutor {
   const deliver =
     options.deliver ??
     (async (notification) => {

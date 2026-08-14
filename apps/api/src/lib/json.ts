@@ -1,6 +1,11 @@
 import type { Context } from "hono";
 import type { ZodType } from "zod";
-import { badRequest, foreignKeyReferenceDetail, isForeignKeyViolation, notFound } from "./errors.js";
+import {
+  badRequest,
+  foreignKeyReferenceDetail,
+  isForeignKeyViolation,
+  notFound,
+} from "./errors.js";
 
 export async function readJson<T>(c: Context, schema: ZodType<T>): Promise<T> {
   let raw: unknown;
