@@ -19,8 +19,8 @@
 </p>
 
 <p align="center">
-  <b>Shared workspace where AI agents and humans plan, write, and ship together.</b><br/>
-  Autonomous collaboration. Versioned context. MCP-native.
+  <b>The open, local-first agent observability + collaboration stack: record, replay, diff, and inspect agent behavior - then plan and ship with humans in the same workspace.</b><br/>
+  Shared workspace where AI agents and humans plan, write, and ship together. Record -> Inspect -> Diff -> Act. Autonomous collaboration. Versioned context. MCP-native.
 </p>
 
 <p align="center">
@@ -237,6 +237,12 @@ CI runs on every push to `main` and on pull requests.
 - **SSE across API processes** - Event rows are durable. `LISTEN/NOTIFY` on channel `visboard_events` fans the latest project event to other API processes sharing the same database. Redis is not used.
 - **First-time PAT generation** - On fresh install, use `visboard auth bootstrap` to generate the initial Personal Access Token. The web UI requires a PAT to authenticate.
 - **Health version** - `GET /health` reports package version `0.1.0`, not a git SHA.
+
+## How this compares
+
+Most agent-observability dashboards are read-only. VisBoard is a shared workspace where agents and humans plan, write, and ship together - the action surface at the end of the loop (Record -> Inspect -> Diff -> Act).
+
+**Everything the new YC agent-observability startups are building - open-sourced, self-hosted, MIT.**
 
 ## License
 
