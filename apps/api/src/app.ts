@@ -2,23 +2,23 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { getEnv } from "./env.js";
 import { ApiError, jsonError } from "./lib/errors.js";
-import { healthRoutes } from "./routes/health.js";
-import { bootstrapRoutes } from "./routes/bootstrap.js";
-import { workspaceRoutes } from "./routes/workspaces.js";
-import { projectRoutes } from "./routes/projects.js";
-import { noteRoutes } from "./routes/notes.js";
-import { checklistRoutes } from "./routes/checklists.js";
-import { fileRoutes } from "./routes/files.js";
-import { agentRoutes } from "./routes/agents.js";
-import { eventRoutes } from "./routes/events.js";
-import { contextRoutes } from "./routes/context.js";
-import { boardRoutes } from "./routes/boards.js";
-import { templateRoutes } from "./routes/templates.js";
-import { blockTypeRoutes } from "./routes/block-types.js";
 import { agentWorkflowRoutes } from "./routes/agent-workflows.js";
+import { agentRoutes } from "./routes/agents.js";
 import { automationRoutes } from "./routes/automations.js";
+import { blockTypeRoutes } from "./routes/block-types.js";
+import { boardRoutes } from "./routes/boards.js";
+import { bootstrapRoutes } from "./routes/bootstrap.js";
+import { checklistRoutes } from "./routes/checklists.js";
+import { contextRoutes } from "./routes/context.js";
+import { eventRoutes } from "./routes/events.js";
+import { fileRoutes } from "./routes/files.js";
+import { healthRoutes } from "./routes/health.js";
 import { integrationRoutes } from "./routes/integrations.js";
 import { interchangeRoutes } from "./routes/interchange.js";
+import { noteRoutes } from "./routes/notes.js";
+import { projectRoutes } from "./routes/projects.js";
+import { templateRoutes } from "./routes/templates.js";
+import { workspaceRoutes } from "./routes/workspaces.js";
 
 export function createApp() {
   const env = getEnv();
@@ -36,6 +36,8 @@ export function createApp() {
         "If-Board-Document",
         "Idempotency-Key",
         "X-Bootstrap-Token",
+        "X-Visboard-Run-Id",
+        "X-Visboard-Lease-Id",
       ],
       exposeHeaders: ["ETag", "Retry-After"],
     }),
@@ -46,10 +48,7 @@ export function createApp() {
       return jsonError(c, err);
     }
     console.error(err);
-    return jsonError(
-      c,
-      new ApiError(500, "Internal Server Error", "An unexpected error occurred"),
-    );
+    return jsonError(c, new ApiError(500, "Internal Server Error", "An unexpected error occurred"));
   });
 
   app.route("/", healthRoutes);

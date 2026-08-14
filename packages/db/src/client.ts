@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as schema from "./schema/index";
+import * as schema from "./schema/index.js";
 
 export type Database = ReturnType<typeof createDb>;
 
@@ -17,4 +17,4 @@ export function createDbFromEnv(databaseUrl = process.env.DATABASE_URL) {
   return createDb(databaseUrl);
 }
 
-export * from "./schema/index";
+export * from "./schema/index.js";

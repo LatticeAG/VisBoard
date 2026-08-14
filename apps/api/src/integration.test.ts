@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { resetEnvForTests } from "./env.ts";
-import { setDbForTests, resetDb } from "./db.ts";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.ts";
 import { resetRateLimitsForTests } from "./auth/middleware.ts";
+import type { AuthPrincipal } from "./auth/middleware.ts";
+import { hashToken } from "./auth/tokens.ts";
+import { resetDb, setDbForTests } from "./db.ts";
+import { resetEnvForTests } from "./env.ts";
 import { clearAgentsMdSyncTimers } from "./services/agents-md-sync.ts";
 import { clearExportsForTests } from "./services/export.ts";
 import { createProject } from "./services/project.ts";
-import { hashToken } from "./auth/tokens.ts";
-import type { AuthPrincipal } from "./auth/middleware.ts";
 import { createEmptyStore, createInMemoryDb } from "./test/mock-db.ts";
 
 describe("bootstrap flow", () => {
@@ -298,17 +298,14 @@ describe("checklist item responses", () => {
   it("POST checklist item returns created item not full checklist", async () => {
     const token = "vb_pat_testtoken123456789012345678901";
     const app = createApp();
-    const res = await app.request(
-      "/v1/workspaces/smoke/projects/demo/checklists/chk_test/items",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text: "Ship API" }),
+    const res = await app.request("/v1/workspaces/smoke/projects/demo/checklists/chk_test/items", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({ text: "Ship API" }),
+    });
 
     expect(res.status).toBe(201);
     const body = await res.json();
@@ -406,12 +403,9 @@ describe("note slug lookup", () => {
   it("GET note by slug returns the note", async () => {
     const token = "vb_pat_testtoken123456789012345678901";
     const app = createApp();
-    const res = await app.request(
-      "/v1/workspaces/smoke/projects/demo/notes/purpose",
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      },
-    );
+    const res = await app.request("/v1/workspaces/smoke/projects/demo/notes/purpose", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -434,9 +428,7 @@ describe("agent project scoping", () => {
     };
 
     expect(() => assertAgentProjectAccess(auth, "prj_secret")).toThrow(ApiError);
-    expect(() =>
-      assertAgentProjectAccess(auth, "prj_demo"),
-    ).not.toThrow();
+    expect(() => assertAgentProjectAccess(auth, "prj_demo")).not.toThrow();
   });
 });
 
@@ -620,7 +612,8 @@ describe("export zip", () => {
     }
 
     expect(download).not.toBeNull();
-    expect(download!.headers.get("content-type")).toContain("application/zip");
+    if (!download) throw new Error("expected download response");
+    expect(download.headers.get("content-type")).toContain("application/zip");
   });
 });
 
@@ -640,10 +633,9 @@ describe("SSE event stream", () => {
   it("GET events/stream returns text/event-stream", async () => {
     const { token } = authFixture();
     const app = createApp();
-    const res = await app.request(
-      "/v1/workspaces/smoke/projects/demo/events/stream",
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    const res = await app.request("/v1/workspaces/smoke/projects/demo/events/stream", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/event-stream");
@@ -702,25 +694,22 @@ describe("V3 board foundation", () => {
     expect(board.document.id).toMatch(/^bdoc_/);
     expect(board.revision.trigger).toBe("board_created");
 
-    const command = await app.request(
-      `/v2/workspaces/ws_test123/boards/${board.id}/commands`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          command_id: "create-mermaid",
-          kind: "block.create",
-          payload: {
-            type: "core.mermaid",
-            content: { source: "graph TD\\nPlan --> Ship" },
-          },
-          expected: { revision_id: board.revision.id },
-        }),
+    const command = await app.request(`/v2/workspaces/ws_test123/boards/${board.id}/commands`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        command_id: "create-mermaid",
+        kind: "block.create",
+        payload: {
+          type: "core.mermaid",
+          content: { source: "graph TD\\nPlan --> Ship" },
+        },
+        expected: { revision_id: board.revision.id },
+      }),
+    });
 
     expect(command.status).toBe(200);
     const commandBody = await command.json();
@@ -728,10 +717,9 @@ describe("V3 board foundation", () => {
     expect(commandBody.block.type).toBe("core.mermaid");
     expect(commandBody.revision.id).not.toBe(board.revision.id);
 
-    const state = await app.request(
-      `/v2/workspaces/ws_test123/boards/${board.id}/state`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    const state = await app.request(`/v2/workspaces/ws_test123/boards/${board.id}/state`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     expect(state.status).toBe(200);
     const stateBody = await state.json();
     expect(stateBody.blocks).toHaveLength(1);
@@ -745,29 +733,25 @@ describe("V3 board foundation", () => {
     const diffBody = await diff.json();
     expect(diffBody.summary.added).toBe(1);
 
-    const restore = await app.request(
-      `/v2/workspaces/ws_test123/boards/${board.id}/restore`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          revision_id: board.revision.id,
-          reason: "Return to a clean planning checkpoint",
-        }),
+    const restore = await app.request(`/v2/workspaces/ws_test123/boards/${board.id}/restore`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        revision_id: board.revision.id,
+        reason: "Return to a clean planning checkpoint",
+      }),
+    });
     expect(restore.status).toBe(200);
     const restoreBody = await restore.json();
     expect(restoreBody.trigger).toBe("restore");
     expect(restoreBody.document_id).not.toBe(board.document.id);
 
-    const restoredState = await app.request(
-      `/v2/workspaces/ws_test123/boards/${board.id}/state`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    const restoredState = await app.request(`/v2/workspaces/ws_test123/boards/${board.id}/state`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     const restoredStateBody = await restoredState.json();
     expect(restoredStateBody.blocks).toHaveLength(0);
     expect(restoredStateBody.board.effect_generation).toBe(1);
@@ -813,9 +797,7 @@ describe("V3 board foundation", () => {
               attributes: { datasource: "research" },
             },
           ],
-          parameters: [
-            { key: "topic", label: "Topic", type: "string", required: true },
-          ],
+          parameters: [{ key: "topic", label: "Topic", type: "string", required: true }],
         },
       }),
     });
@@ -854,12 +836,7 @@ describe("V3 board foundation", () => {
     expect(listed.status).toBe(200);
     const listBody = await listed.json();
     expect(listBody.data.map((template: { slug: string }) => template.slug)).toEqual(
-      expect.arrayContaining([
-        "sprint-planning",
-        "incident-response",
-        "pr-review",
-        "research",
-      ]),
+      expect.arrayContaining(["sprint-planning", "incident-response", "pr-review", "research"]),
     );
 
     const research = listBody.data.find(
@@ -886,22 +863,19 @@ describe("V3 board foundation", () => {
     });
     const board = await created.json();
 
-    const stale = await app.request(
-      `/v2/workspaces/ws_test123/boards/${board.id}/commands`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          command_id: "stale-command",
-          kind: "block.create",
-          payload: { type: "core.code", content: { source: "const x = 1" } },
-          expected: { revision_id: "rev_01ARZ3NDEKTSV4RRFFQ69G5FAV" },
-        }),
+    const stale = await app.request(`/v2/workspaces/ws_test123/boards/${board.id}/commands`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        command_id: "stale-command",
+        kind: "block.create",
+        payload: { type: "core.code", content: { source: "const x = 1" } },
+        expected: { revision_id: "rev_01ARZ3NDEKTSV4RRFFQ69G5FAV" },
+      }),
+    });
 
     expect(stale.status).toBe(412);
     const staleBody = await stale.json();

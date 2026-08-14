@@ -1,33 +1,28 @@
 import {
+  type Database,
   boardBlocks,
   boardDocuments,
   boardEvents,
   boardRevisions,
   boards,
-  type Database,
 } from "@visboard/db";
 import {
+  type BoardCommand,
+  type BoardRevisionState,
+  type CreateBoardInput,
   PREFIX,
+  type UpdateBoardInput,
   boardBlockSchema,
   boardRevisionStateSchema,
   createBoardBlockSchema,
   createId,
   slugify,
   updateBoardBlockSchema,
-  type BoardCommand,
-  type BoardRevisionState,
-  type CreateBoardInput,
-  type UpdateBoardInput,
 } from "@visboard/shared";
 import { and, eq, isNull } from "drizzle-orm";
 import type { AuthPrincipal } from "../auth/middleware.js";
+import { badRequest, conflict, notFound, preconditionFailed } from "../lib/errors.js";
 import { actorFromAuth } from "../lib/helpers.js";
-import {
-  badRequest,
-  conflict,
-  notFound,
-  preconditionFailed,
-} from "../lib/errors.js";
 import { getWorkspaceById } from "./workspace.js";
 
 type Actor = ReturnType<typeof actorFromAuth>;
@@ -156,42 +151,27 @@ async function getBoardRecord(
     .select()
     .from(boards)
     .where(
-      and(
-        eq(boards.id, boardId),
-        eq(boards.workspaceId, workspaceId),
-        isNull(boards.deletedAt),
-      ),
+      and(eq(boards.id, boardId), eq(boards.workspaceId, workspaceId), isNull(boards.deletedAt)),
     );
   const board = rows.find(
-    (row) =>
-      row.id === boardId && row.workspaceId === workspaceId && !row.deletedAt,
+    (row) => row.id === boardId && row.workspaceId === workspaceId && !row.deletedAt,
   );
   if (!board) throw notFound(`Board '${boardId}' not found`);
   return board;
 }
 
-async function getBoardRecordById(
-  db: Database["db"],
-  boardId: string,
-): Promise<BoardRecord> {
+async function getBoardRecordById(db: Database["db"], boardId: string): Promise<BoardRecord> {
   const rows = await db.select().from(boards).where(eq(boards.id, boardId));
   const board = rows.find((row) => row.id === boardId && !row.deletedAt);
   if (!board) throw notFound(`Board '${boardId}' not found`);
   return board;
 }
 
-export async function getBoard(
-  db: Database["db"],
-  workspaceId: string,
-  boardId: string,
-) {
+export async function getBoard(db: Database["db"], workspaceId: string, boardId: string) {
   return formatBoard(await getBoardRecord(db, workspaceId, boardId));
 }
 
-async function getActiveDocument(
-  db: Database["db"],
-  board: BoardRecord,
-): Promise<DocumentRecord> {
+async function getActiveDocument(db: Database["db"], board: BoardRecord): Promise<DocumentRecord> {
   if (!board.currentDocumentId) {
     throw conflict(`Board '${board.id}' has no active document`);
   }
@@ -201,19 +181,13 @@ async function getActiveDocument(
     .where(eq(boardDocuments.id, board.currentDocumentId));
   const document = rows.find(
     (row) =>
-      row.id === board.currentDocumentId &&
-      row.boardId === board.id &&
-      row.state === "active",
+      row.id === board.currentDocumentId && row.boardId === board.id && row.state === "active",
   );
   if (!document) throw conflict(`Board '${board.id}' has no active document`);
   return document;
 }
 
-export async function listBoardBlocks(
-  db: Database["db"],
-  boardId: string,
-  documentId?: string,
-) {
+export async function listBoardBlocks(db: Database["db"], boardId: string, documentId?: string) {
   const rows = await db
     .select()
     .from(boardBlocks)
@@ -284,7 +258,11 @@ export async function createBoard(
     .select()
     .from(boards)
     .where(and(eq(boards.workspaceId, workspaceId), eq(boards.slug, slug)));
-  if (existing.some((board) => board.workspaceId === workspaceId && board.slug === slug && !board.deletedAt)) {
+  if (
+    existing.some(
+      (board) => board.workspaceId === workspaceId && board.slug === slug && !board.deletedAt,
+    )
+  ) {
     throw conflict(`Board slug '${slug}' already exists`);
   }
 
@@ -367,7 +345,8 @@ export async function updateBoard(
     })
     .where(eq(boards.id, board.id))
     .returning();
-  return formatBoard(updated!);
+  if (!updated) throw new Error("Failed to update board");
+  return formatBoard(updated);
 }
 
 export async function getBoardState(
@@ -440,7 +419,8 @@ export async function createBoardBlock(
       updatedAt: now,
     })
     .returning();
-  return block!;
+  if (!block) throw new Error("Failed to create board block");
+  return block;
 }
 
 async function updateBoardBlock(
@@ -470,7 +450,8 @@ async function updateBoardBlock(
     })
     .where(eq(boardBlocks.id, block.id))
     .returning();
-  return updated!;
+  if (!updated) throw new Error("Failed to update board block");
+  return updated;
 }
 
 export async function captureBoardRevision(
@@ -500,9 +481,7 @@ export async function captureBoardRevision(
   const state: BoardRevisionState = {
     version: 1,
     document: formatBoardDocument(document) as unknown as Record<string, unknown>,
-    blocks: blocks.map(
-      (block) => formatBoardBlock(block) as unknown as Record<string, unknown>,
-    ),
+    blocks: blocks.map((block) => formatBoardBlock(block) as unknown as Record<string, unknown>),
   };
   const existingRevisions = await db
     .select()
@@ -560,7 +539,8 @@ export async function captureBoardRevision(
     createdAt: now,
   });
 
-  return formatBoardRevision(revision!);
+  if (!revision) throw new Error("Failed to capture board revision");
+  return formatBoardRevision(revision);
 }
 
 function assertCommandPreconditions(board: BoardRecord, command: BoardCommand) {
@@ -608,21 +588,12 @@ export async function executeBoardCommand(
       eventType = "block.created";
       break;
     case "block.update": {
-      const current = await getBoardBlockRecord(
-        db,
-        board.id,
-        commandBlockId(command),
-      );
+      const current = await getBoardBlockRecord(db, board.id, commandBlockId(command));
       block = await updateBoardBlock(db, current, actor, command.payload);
       break;
     }
     case "block.archive": {
-      const current = await getBoardBlockRecord(
-        db,
-        board.id,
-        commandBlockId(command),
-        true,
-      );
+      const current = await getBoardBlockRecord(db, board.id, commandBlockId(command), true);
       const now = new Date();
       const [updated] = await db
         .update(boardBlocks)
@@ -634,26 +605,19 @@ export async function executeBoardCommand(
         })
         .where(eq(boardBlocks.id, current.id))
         .returning();
-      block = updated!;
+      if (!updated) throw new Error("Failed to archive board block");
+      block = updated;
       eventType = "block.archived";
       break;
     }
     case "block.move": {
-      const current = await getBoardBlockRecord(
-        db,
-        board.id,
-        commandBlockId(command),
-      );
+      const current = await getBoardBlockRecord(db, board.id, commandBlockId(command));
       block = await updateBoardBlock(db, current, actor, command.payload);
       eventType = "block.moved";
       break;
     }
     case "kanban.card.move": {
-      const card = await getBoardBlockRecord(
-        db,
-        board.id,
-        commandBlockId(command),
-      );
+      const card = await getBoardBlockRecord(db, board.id, commandBlockId(command));
       if (card.type !== "core.kanban_card") {
         throw conflict("kanban.card.move only applies to core.kanban_card blocks");
       }
@@ -694,32 +658,19 @@ export async function executeBoardCommand(
   };
 }
 
-async function getRevisionRecord(
-  db: Database["db"],
-  boardId: string,
-  revisionId: string,
-) {
+async function getRevisionRecord(db: Database["db"], boardId: string, revisionId: string) {
   const rows = await db
     .select()
     .from(boardRevisions)
     .where(and(eq(boardRevisions.boardId, boardId), eq(boardRevisions.id, revisionId)));
-  const revision = rows.find(
-    (row) => row.boardId === boardId && row.id === revisionId,
-  );
+  const revision = rows.find((row) => row.boardId === boardId && row.id === revisionId);
   if (!revision) throw notFound(`Revision '${revisionId}' not found`);
   return revision;
 }
 
-export async function listBoardRevisions(
-  db: Database["db"],
-  workspaceId: string,
-  boardId: string,
-) {
+export async function listBoardRevisions(db: Database["db"], workspaceId: string, boardId: string) {
   await getBoardRecord(db, workspaceId, boardId);
-  const rows = await db
-    .select()
-    .from(boardRevisions)
-    .where(eq(boardRevisions.boardId, boardId));
+  const rows = await db.select().from(boardRevisions).where(eq(boardRevisions.boardId, boardId));
   return rows
     .filter((revision) => revision.boardId === boardId)
     .sort((a, b) => b.revisionNumber - a.revisionNumber)
@@ -748,18 +699,10 @@ export async function diffBoardRevisions(
   toRevisionId: string,
 ) {
   await getBoardRecord(db, workspaceId, boardId);
-  const from = formatBoardRevision(
-    await getRevisionRecord(db, boardId, fromRevisionId),
-  );
-  const to = formatBoardRevision(
-    await getRevisionRecord(db, boardId, toRevisionId),
-  );
-  const fromBlocks = new Map(
-    from.state.blocks.map((block) => [String(block.id), block]),
-  );
-  const toBlocks = new Map(
-    to.state.blocks.map((block) => [String(block.id), block]),
-  );
+  const from = formatBoardRevision(await getRevisionRecord(db, boardId, fromRevisionId));
+  const to = formatBoardRevision(await getRevisionRecord(db, boardId, toRevisionId));
+  const fromBlocks = new Map(from.state.blocks.map((block) => [String(block.id), block]));
+  const toBlocks = new Map(to.state.blocks.map((block) => [String(block.id), block]));
   const added = [...toBlocks.entries()]
     .filter(([id]) => !fromBlocks.has(id))
     .map(([, block]) => block);
@@ -817,10 +760,7 @@ export async function restoreBoardRevision(
   expectedDocumentId?: string,
 ) {
   const board = await getBoardRecord(db, workspaceId, boardId);
-  if (
-    expectedDocumentId !== undefined &&
-    expectedDocumentId !== board.currentDocumentId
-  ) {
+  if (expectedDocumentId !== undefined && expectedDocumentId !== board.currentDocumentId) {
     throw preconditionFailed(
       `Document mismatch: expected ${expectedDocumentId}, current is ${board.currentDocumentId}`,
     );
@@ -883,10 +823,7 @@ export async function restoreBoardRevision(
       deletedAt: null,
     };
     if (current) {
-      await db
-        .update(boardBlocks)
-        .set(values)
-        .where(eq(boardBlocks.id, current.id));
+      await db.update(boardBlocks).set(values).where(eq(boardBlocks.id, current.id));
     } else {
       await db.insert(boardBlocks).values({
         id: snapshot.id,

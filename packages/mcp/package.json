@@ -2,10 +2,19 @@
   "name": "@visboard/mcp",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "MCP server exposing VisBoard to Cursor and Claude via Model Context Protocol",
   "bin": {
     "visboard-mcp": "./dist/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LatticeAG/VisBoard.git",
+    "directory": "packages/mcp"
   },
   "scripts": {
     "build": "tsc",

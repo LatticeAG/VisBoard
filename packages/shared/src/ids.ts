@@ -21,6 +21,20 @@ export const PREFIX = {
   event: "evt",
   user: "user",
   pat: "pat",
+  agentWorkspace: "aws",
+  agentWorkspaceFile: "awf",
+  agentRun: "arun",
+  agentLease: "lease",
+  handoff: "hof",
+  handoffDecision: "hdec",
+  automationRule: "arule",
+  automationRunJob: "arunjob",
+  automationActionRun: "aact",
+  integrationConnection: "icon",
+  syncLink: "slink",
+  syncConflict: "scfl",
+  exportJob: "exp",
+  idempotencyRecord: "idem",
 } as const;
 
 export type PrefixKey = keyof typeof PREFIX;
@@ -56,6 +70,20 @@ export const ID_PATTERNS = {
   event: new RegExp(`^evt_${ULID_PATTERN}$`),
   user: new RegExp(`^user_${ULID_PATTERN}$`),
   pat: new RegExp(`^pat_${ULID_PATTERN}$`),
+  agentWorkspace: new RegExp(`^aws_${ULID_PATTERN}$`),
+  agentWorkspaceFile: new RegExp(`^awf_${ULID_PATTERN}$`),
+  agentRun: new RegExp(`^arun_${ULID_PATTERN}$`),
+  agentLease: new RegExp(`^lease_${ULID_PATTERN}$`),
+  handoff: new RegExp(`^hof_${ULID_PATTERN}$`),
+  handoffDecision: new RegExp(`^hdec_${ULID_PATTERN}$`),
+  automationRule: new RegExp(`^arule_${ULID_PATTERN}$`),
+  automationRunJob: new RegExp(`^arunjob_${ULID_PATTERN}$`),
+  automationActionRun: new RegExp(`^aact_${ULID_PATTERN}$`),
+  integrationConnection: new RegExp(`^icon_${ULID_PATTERN}$`),
+  syncLink: new RegExp(`^slink_${ULID_PATTERN}$`),
+  syncConflict: new RegExp(`^scfl_${ULID_PATTERN}$`),
+  exportJob: new RegExp(`^exp_${ULID_PATTERN}$`),
+  idempotencyRecord: new RegExp(`^idem_${ULID_PATTERN}$`),
 } as const;
 
 export function isValidId(value: string, kind: keyof typeof ID_PATTERNS): boolean {

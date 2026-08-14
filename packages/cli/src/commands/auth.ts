@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import { loadConfig, saveConfig, updateConfig } from "../config.js";
 import { createClient } from "../client.js";
+import { loadConfig, saveConfig, updateConfig } from "../config.js";
 import { getGlobalOptions } from "../globals.js";
 import { outputData, outputText } from "../output.js";
 
@@ -35,7 +35,7 @@ export function registerAuthCommands(program: Command): void {
         outputData(result, globals);
       } else {
         outputText(`Bootstrap complete. Workspace: ${result.workspace.slug}`, globals);
-        outputText(`Token (save now — shown once): ${result.token}`, globals);
+        outputText(`Token (save now; shown once): ${result.token}`, globals);
       }
     });
 
@@ -70,7 +70,7 @@ export function registerAuthCommands(program: Command): void {
     .action(async function (this: Command) {
       const globals = getGlobalOptions(this);
       const config = await loadConfig();
-      delete config.token;
+      config.token = undefined;
       await saveConfig(config);
       outputText("Token removed.", globals);
     });

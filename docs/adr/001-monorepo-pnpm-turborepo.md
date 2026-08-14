@@ -24,6 +24,6 @@ Use a **pnpm workspace monorepo** orchestrated by **Turborepo**:
 
 ## Alternatives considered
 
-- **npm workspaces** — slower installs, weaker workspace linking
-- **Nx** — heavier than needed for Phase 1 scope
-- **Separate repos** — duplicates types and slows cross-package changes
+- **npm workspaces**: slower installs, weaker workspace linking
+- **Nx**: heavier than needed for Phase 1 scope
+- **Separate repos**: duplicates types and slows cross-package changes

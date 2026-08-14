@@ -16,6 +16,20 @@
     "lineWidth": 100
   },
   "files": {
-    "ignore": ["dist", "node_modules", ".turbo", "pnpm-lock.yaml"]
+    "ignore": [
+      "**/dist",
+      "**/node_modules",
+      ".turbo",
+      "pnpm-lock.yaml",
+      "apps/web/.next/**",
+      "coverage",
+      "packages/db/src/migrations/meta",
+      "**/*.sql",
+      "dist-tarballs",
+      "**/playwright-report",
+      "**/test-results",
+      "**/data",
+      "data"
+    ]
   }
 }

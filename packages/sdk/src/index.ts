@@ -5,5 +5,6 @@ export type { ProblemDetails } from "./error.js";
 export type { HttpMethod, RequestOptions } from "./http.js";
 export type { UploadFileInput } from "./resources/files.js";
 export { BoardsResource, type BoardMutationOptions } from "./resources/boards.js";
-export { TemplatesResource } from "./resources/templates.js";
+export { HandoffsResource } from "./resources/handoffs.js";
+export type { BeliefTraceResponse, HandoffSummary } from "./resources/handoffs.js";
 export * from "./types.js";

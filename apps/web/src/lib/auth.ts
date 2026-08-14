@@ -1,11 +1,10 @@
-const TOKEN_KEY = 'visboard_token';
-const API_URL_KEY = 'visboard_api_url';
+const TOKEN_KEY = "visboard_token";
+const API_URL_KEY = "visboard_api_url";
 
-const DEFAULT_API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/v1';
+const DEFAULT_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/v1";
 
 export function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   return localStorage.getItem(TOKEN_KEY);
 }
 
@@ -22,7 +21,7 @@ export function hasToken(): boolean {
 }
 
 export function getApiUrl(): string {
-  if (typeof window === 'undefined') return DEFAULT_API_URL;
+  if (typeof window === "undefined") return DEFAULT_API_URL;
   return localStorage.getItem(API_URL_KEY) ?? DEFAULT_API_URL;
 }
 

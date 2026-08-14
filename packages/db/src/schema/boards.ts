@@ -1,15 +1,7 @@
 import { isNull } from "drizzle-orm";
-import {
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uniqueIndex,
-} from "drizzle-orm/pg-core";
-import { projects } from "./projects";
-import { workspaces } from "./workspaces";
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { projects } from "./projects.js";
+import { workspaces } from "./workspaces.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -64,10 +56,7 @@ export const boardDocuments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("board_documents_board_id_epoch_unique").on(
-      table.boardId,
-      table.epoch,
-    ),
+    uniqueIndex("board_documents_board_id_epoch_unique").on(table.boardId, table.epoch),
     index("board_documents_board_id_state_idx").on(table.boardId, table.state),
   ],
 );
@@ -136,10 +125,7 @@ export const boardRevisions = pgTable(
       table.boardId,
       table.revisionNumber,
     ),
-    index("board_revisions_board_id_created_at_idx").on(
-      table.boardId,
-      table.createdAt,
-    ),
+    index("board_revisions_board_id_created_at_idx").on(table.boardId, table.createdAt),
   ],
 );
 
@@ -180,10 +166,7 @@ export const boardTemplates = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("board_templates_workspace_id_slug_unique").on(
-      table.workspaceId,
-      table.slug,
-    ),
+    uniqueIndex("board_templates_workspace_id_slug_unique").on(table.workspaceId, table.slug),
     index("board_templates_scope_idx").on(table.scope),
   ],
 );
@@ -203,10 +186,7 @@ export const templateVersions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex("template_versions_template_id_version_unique").on(
-      table.templateId,
-      table.version,
-    ),
+    uniqueIndex("template_versions_template_id_version_unique").on(table.templateId, table.version),
   ],
 );
 

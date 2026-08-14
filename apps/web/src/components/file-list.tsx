@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import type { FileRecord } from '@visboard/sdk';
-import { api } from '@/lib/api-client';
+import { api } from "@/lib/api-client";
+import type { FileRecord } from "@visboard/sdk";
+import { useState } from "react";
 
 interface FileListProps {
   files: FileRecord[];
@@ -28,7 +28,7 @@ export function FileList({ files, ws, project }: FileListProps) {
     try {
       const blob = await result.data.blob();
       const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
+      const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = file.name;
       document.body.appendChild(anchor);
@@ -36,7 +36,7 @@ export function FileList({ files, ws, project }: FileListProps) {
       document.body.removeChild(anchor);
       URL.revokeObjectURL(url);
     } catch {
-      setDownloadError('Failed to download file');
+      setDownloadError("Failed to download file");
     }
 
     setDownloadingId(null);
@@ -55,9 +55,7 @@ export function FileList({ files, ws, project }: FileListProps) {
       <div className="border-b border-border px-4 py-3">
         <h2 className="font-mono text-sm text-text">Files</h2>
         <p className="font-mono text-xs text-muted">{files.length} file(s)</p>
-        {downloadError && (
-          <p className="mt-1 font-mono text-xs text-red-400">{downloadError}</p>
-        )}
+        {downloadError && <p className="mt-1 font-mono text-xs text-red-400">{downloadError}</p>}
       </div>
 
       <table className="w-full font-mono text-xs">
@@ -66,7 +64,7 @@ export function FileList({ files, ws, project }: FileListProps) {
             <th className="px-4 py-2 font-normal">Name</th>
             <th className="px-4 py-2 font-normal">Type</th>
             <th className="px-4 py-2 font-normal">Size</th>
-            <th className="px-4 py-2 font-normal"></th>
+            <th className="px-4 py-2 font-normal" />
           </tr>
         </thead>
         <tbody>
@@ -83,7 +81,7 @@ export function FileList({ files, ws, project }: FileListProps) {
                   className="text-accent hover:underline disabled:opacity-50"
                   title={`Download ${file.name}`}
                 >
-                  {downloadingId === file.id ? '…' : '↓'}
+                  {downloadingId === file.id ? "…" : "↓"}
                 </button>
               </td>
             </tr>

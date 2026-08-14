@@ -75,13 +75,7 @@ describe("VisBoardClient", () => {
     });
 
     const client = new VisBoardClient({ baseUrl: BASE_URL, token: "t", fetch });
-    const note = await client.notes.update(
-      "acme",
-      "demo",
-      "nt_1",
-      { title: "Updated" },
-      'W/"2"',
-    );
+    const note = await client.notes.update("acme", "demo", "nt_1", { title: "Updated" }, 'W/"2"');
     expect(note.version).toBe(3);
   });
 
@@ -105,9 +99,7 @@ describe("VisBoardClient", () => {
 
   it("fetches context with include query", async () => {
     const fetch = mockFetch((url) => {
-      expect(url).toBe(
-        `${BASE_URL}/workspaces/acme/projects/demo/context?include=headings`,
-      );
+      expect(url).toBe(`${BASE_URL}/workspaces/acme/projects/demo/context?include=headings`);
       return jsonResponse({
         project: { id: "prj_1", slug: "demo", name: "Demo" },
         agents_md: "# AGENTS.md",
@@ -124,26 +116,25 @@ describe("VisBoardClient", () => {
   });
 
   it("throws VisBoardError for problem+json responses", async () => {
-    const fetch = mockFetch(() =>
-      new Response(
-        JSON.stringify({
-          type: "https://visboard.dev/errors/not-found",
-          title: "Not Found",
-          status: 404,
-          detail: "Project missing",
-        }),
-        {
-          status: 404,
-          headers: { "content-type": "application/problem+json" },
-        },
-      ),
+    const fetch = mockFetch(
+      () =>
+        new Response(
+          JSON.stringify({
+            type: "https://visboard.dev/errors/not-found",
+            title: "Not Found",
+            status: 404,
+            detail: "Project missing",
+          }),
+          {
+            status: 404,
+            headers: { "content-type": "application/problem+json" },
+          },
+        ),
     );
 
     const client = new VisBoardClient({ baseUrl: BASE_URL, token: "t", fetch });
 
-    await expect(client.projects.get("acme", "missing")).rejects.toBeInstanceOf(
-      VisBoardError,
-    );
+    await expect(client.projects.get("acme", "missing")).rejects.toBeInstanceOf(VisBoardError);
     await expect(client.projects.get("acme", "missing")).rejects.toMatchObject({
       status: 404,
       title: "Not Found",
@@ -214,9 +205,7 @@ describe("VisBoardError", () => {
 describe("V2 board resources", () => {
   it("uses canonical board routes and forwards command preconditions", async () => {
     const fetch = mockFetch((url, init) => {
-      expect(url).toBe(
-        "http://localhost:8080/v2/workspaces/ws_01/boards/brd_01/commands",
-      );
+      expect(url).toBe("http://localhost:8080/v2/workspaces/ws_01/boards/brd_01/commands");
       expect(init?.headers).toMatchObject({
         Authorization: "Bearer t",
         "Idempotency-Key": "cmd-retry-key",
@@ -276,5 +265,26 @@ describe("V2 board resources", () => {
     });
 
     expect(result.revision.id).toBe("rev_01");
+  });
+
+  it("reads a submitted handoff belief trace on v2", async () => {
+    const fetch = mockFetch((url) => {
+      expect(url).toBe(
+        "http://localhost:8080/v2/workspaces/ws_01/boards/brd_01/handoffs/hof_01/belief-trace",
+      );
+      return jsonResponse({
+        trace: { schema_version: 1, summary: "ok", beliefs: [] },
+        belief_trace_hash: "hash-trace",
+        packet_hash: "hash-packet",
+      });
+    });
+
+    const client = new VisBoardClient({
+      baseUrl: "http://localhost:8080/v2",
+      token: "t",
+      fetch,
+    });
+    const payload = await client.handoffs.getBeliefTrace("ws_01", "brd_01", "hof_01");
+    expect(payload.belief_trace_hash).toBe("hash-trace");
   });
 });

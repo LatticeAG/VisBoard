@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   BLOCK_TYPE_REGISTRY,
   BUILT_IN_TEMPLATES,
+  Scope,
   createBoardBlockSchema,
   createPrefixedId,
   createWorkspaceSchema,
   hasScope,
   isValidId,
-  Scope,
   slugSchema,
 } from "./index.js";
 

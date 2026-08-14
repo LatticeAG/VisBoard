@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 
-export type ToastVariant = 'success' | 'error' | 'info';
+export type ToastVariant = "success" | "error" | "info";
 
 export interface ToastItem {
   id: number;
@@ -20,7 +20,7 @@ export function useToast() {
   }, []);
 
   const show = useCallback(
-    (message: string, variant: ToastVariant = 'info') => {
+    (message: string, variant: ToastVariant = "info") => {
       const id = ++nextId;
       setToasts((prev) => [...prev, { id, message, variant }]);
       setTimeout(() => dismiss(id), 4000);
@@ -62,16 +62,15 @@ function Toast({
   }, [toast.id, onDismiss]);
 
   const variantClass =
-    toast.variant === 'success'
-      ? 'border-success text-success'
-      : toast.variant === 'error'
-        ? 'border-red-800 text-red-400'
-        : 'border-accent-dim text-accent';
+    toast.variant === "success"
+      ? "border-success text-success"
+      : toast.variant === "error"
+        ? "border-red-800 text-red-400"
+        : "border-accent-dim text-accent";
 
   return (
-    <div
+    <output
       className={`pointer-events-auto flex items-center gap-3 border bg-surface px-4 py-2 font-mono text-xs shadow-lg ${variantClass}`}
-      role="status"
     >
       <span className="flex-1">{toast.message}</span>
       <button
@@ -82,7 +81,7 @@ function Toast({
       >
         ×
       </button>
-    </div>
+    </output>
   );
 }
 
@@ -92,17 +91,13 @@ interface InlineAlertProps {
   className?: string;
 }
 
-export function InlineAlert({
-  message,
-  variant = 'error',
-  className = '',
-}: InlineAlertProps) {
+export function InlineAlert({ message, variant = "error", className = "" }: InlineAlertProps) {
   const variantClass =
-    variant === 'success'
-      ? 'border-success text-success'
-      : variant === 'info'
-        ? 'border-accent-dim text-accent'
-        : 'border-red-900 text-red-400';
+    variant === "success"
+      ? "border-success text-success"
+      : variant === "info"
+        ? "border-accent-dim text-accent"
+        : "border-red-900 text-red-400";
 
   return (
     <div

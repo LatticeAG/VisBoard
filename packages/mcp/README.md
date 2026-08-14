@@ -24,8 +24,9 @@ MCP server exposing [VisBoard](https://github.com/LatticeAG/visboard) to Cursor,
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `VISBOARD_TOKEN` | Yes | — | Personal access token or agent API key |
+| `VISBOARD_TOKEN` | Yes | (none) | Personal access token or agent API key |
 | `VISBOARD_API_URL` | No | `http://localhost:8080/v1` | VisBoard API base URL |
+| `VISBOARD_BASE_URL` | No | (alias of `VISBOARD_API_URL`) | Accepted for older docs |
 
 ## Cursor setup
 
@@ -35,8 +36,8 @@ Add to your Cursor MCP config (`~/.cursor/mcp.json` or project `.cursor/mcp.json
 {
   "mcpServers": {
     "visboard": {
-      "command": "npx",
-      "args": ["@visboard/mcp"],
+      "command": "node",
+      "args": ["packages/mcp/dist/index.js"],
       "env": {
         "VISBOARD_API_URL": "http://localhost:8080/v1",
         "VISBOARD_TOKEN": "vb_pat_..."

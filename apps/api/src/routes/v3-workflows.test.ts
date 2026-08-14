@@ -5,10 +5,10 @@ import { resetRateLimitsForTests } from "../auth/middleware.ts";
 import { hashToken } from "../auth/tokens.ts";
 import { resetDb, setDbForTests } from "../db.ts";
 import { resetEnvForTests } from "../env.ts";
+import { createInMemoryDb } from "../test/mock-db.ts";
 import { resetAgentWorkflowRuntimeForTests } from "./agent-workflows.ts";
 import { resetAutomationRoutesForTests } from "./automations.ts";
 import { resetIntegrationRoutesForTests } from "./integrations.ts";
-import { createInMemoryDb } from "../test/mock-db.ts";
 
 const workspaceId = "ws_test123";
 const userId = "user_test123";
@@ -32,9 +32,7 @@ function setup() {
         },
       ],
       users: [{ id: userId, displayName: "Admin", createdAt: new Date() }],
-      workspace_members: [
-        { workspaceId, userId, role: "owner", createdAt: new Date() },
-      ],
+      workspace_members: [{ workspaceId, userId, role: "owner", createdAt: new Date() }],
       personal_access_tokens: [
         {
           id: "pat_test",
@@ -74,20 +72,17 @@ describe("mounted V3 agent workspace and handoff protocol", () => {
 
   it("isolates a board-scoped file tree, versions scratchpad writes, and freezes a submitted handoff", async () => {
     const { app, board } = await createBoard();
-    const start = await app.request(
-      `/v2/workspaces/${workspaceId}/boards/${board.id}/agent-runs`,
-      {
-        method: "POST",
-        headers: headers({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          agent_id: "agent_builder",
-          mode: "operate",
-          goal: "Build the board implementation",
-          base_revision_id: board.revision.id,
-          allowed_paths: ["src"],
-        }),
-      },
-    );
+    const start = await app.request(`/v2/workspaces/${workspaceId}/boards/${board.id}/agent-runs`, {
+      method: "POST",
+      headers: headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        agent_id: "agent_builder",
+        mode: "operate",
+        goal: "Build the board implementation",
+        base_revision_id: board.revision.id,
+        allowed_paths: ["src"],
+      }),
+    });
     expect(start.status).toBe(201);
     const run = await start.json();
 
@@ -144,28 +139,45 @@ describe("mounted V3 agent workspace and handoff protocol", () => {
     });
     expect(updateScratchpad.status).toBe(200);
 
-    const handoff = await app.request(
-      `/v2/workspaces/${workspaceId}/boards/${board.id}/handoffs`,
-      {
-        method: "POST",
-        headers: headers({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          access: { run_id: run.run.id, lease_id: run.lease.id },
-          agent_workspace_id: workspace.id,
-          revision_id: board.revision.id,
-          packet: {
-            goal: "Approve the implementation",
-            completed_work: ["Created a scoped file tree"],
-            requested_decision: {
-              kind: "release_approval",
-              question: "May the agent continue to release?",
-              choices: [{ id: "approve", label: "Approve" }],
-              resume_allowed: true,
-            },
+    const handoff = await app.request(`/v2/workspaces/${workspaceId}/boards/${board.id}/handoffs`, {
+      method: "POST",
+      headers: headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        access: { run_id: run.run.id, lease_id: run.lease.id },
+        agent_workspace_id: workspace.id,
+        revision_id: board.revision.id,
+        packet: {
+          goal: "Approve the implementation",
+          completed_work: ["Created a scoped file tree"],
+          requested_decision: {
+            kind: "release_approval",
+            question: "May the agent continue to release?",
+            choices: [{ id: "approve", label: "Approve" }],
+            resume_allowed: true,
           },
-        }),
-      },
-    );
+          belief_trace: {
+            schema_version: 1,
+            board_revision_id: board.revision.id,
+            run_id: run.run.id,
+            captured_at: "2026-08-14T04:00:00.000Z",
+            summary: "Scoped file tree is ready for review",
+            beliefs: [
+              {
+                id: "b1",
+                statement: "The file tree is isolated to this run",
+                evidence_refs: [],
+                block_ids: [],
+                source: "agent",
+              },
+            ],
+            assumptions: [],
+            overweighted: [],
+            ignored: [],
+            confidence: 0.7,
+          },
+        },
+      }),
+    });
     expect(handoff.status).toBe(201);
     const draft = await handoff.json();
 
@@ -199,23 +211,20 @@ describe("mounted V3 Markdown and JSON interchange", () => {
 
   it("exports rich source faithfully and imports portable Markdown through typed blocks", async () => {
     const { app, board } = await createBoard();
-    const command = await app.request(
-      `/v2/workspaces/${workspaceId}/boards/${board.id}/commands`,
-      {
-        method: "POST",
-        headers: headers({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          command_id: "add-diagram",
-          kind: "block.create",
-          payload: {
-            type: "core.mermaid",
-            attributes: { title: "Release flow" },
-            content: { source: "graph TD\nA-->B" },
-          },
-          expected: { revision_id: board.revision.id },
-        }),
-      },
-    );
+    const command = await app.request(`/v2/workspaces/${workspaceId}/boards/${board.id}/commands`, {
+      method: "POST",
+      headers: headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        command_id: "add-diagram",
+        kind: "block.create",
+        payload: {
+          type: "core.mermaid",
+          attributes: { title: "Release flow" },
+          content: { source: "graph TD\nA-->B" },
+        },
+        expected: { revision_id: board.revision.id },
+      }),
+    });
     expect(command.status).toBe(200);
 
     const exported = await app.request(
@@ -227,14 +236,11 @@ describe("mounted V3 Markdown and JSON interchange", () => {
     expect(markdown.content).toContain("```mermaid");
     expect(markdown.content).toContain("visboard:block");
 
-    const imported = await app.request(
-      `/v2/workspaces/${workspaceId}/boards/${board.id}/imports`,
-      {
-        method: "POST",
-        headers: headers({ "Content-Type": "text/markdown" }),
-        body: "# Imported runbook\n\nThis content is portable.",
-      },
-    );
+    const imported = await app.request(`/v2/workspaces/${workspaceId}/boards/${board.id}/imports`, {
+      method: "POST",
+      headers: headers({ "Content-Type": "text/markdown" }),
+      body: "# Imported runbook\n\nThis content is portable.",
+    });
     expect(imported.status).toBe(201);
     const importResult = await imported.json();
     expect(importResult.imported).toHaveLength(1);
@@ -306,9 +312,7 @@ describe("mounted V3 connector bridge", () => {
         issue: { id: 7, number: 7, state: "closed", labels: [] },
       }),
     );
-    const signature = createHmac("sha256", "connector-secret")
-      .update(rawBody)
-      .digest("hex");
+    const signature = createHmac("sha256", "connector-secret").update(rawBody).digest("hex");
     const webhook = await app.request(`/v2/integrations/webhooks/${connection.id}`, {
       method: "POST",
       headers: {
@@ -320,10 +324,9 @@ describe("mounted V3 connector bridge", () => {
     });
     expect(webhook.status).toBe(202);
 
-    const state = await app.request(
-      `/v2/workspaces/${workspaceId}/boards/${board.id}/state`,
-      { headers: headers() },
-    );
+    const state = await app.request(`/v2/workspaces/${workspaceId}/boards/${board.id}/state`, {
+      headers: headers(),
+    });
     expect(state.status).toBe(200);
     expect((await state.json()).blocks[0].attributes.state).toBe("closed");
   });
@@ -335,41 +338,34 @@ describe("mounted V3 board automation dispatch", () => {
 
   it("feeds committed semantic board commands into workspace automation rules", async () => {
     const { app, board } = await createBoard();
-    const rule = await app.request(
-      `/v2/workspaces/${workspaceId}/automation-rules`,
-      {
-        method: "POST",
-        headers: headers({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          board_id: board.id,
-          name: "Record added blocks",
-          enabled: true,
-          trigger: { event_types: ["block.created"] },
-          actions: [{ id: "notify", type: "notify" }],
-        }),
-      },
-    );
+    const rule = await app.request(`/v2/workspaces/${workspaceId}/automation-rules`, {
+      method: "POST",
+      headers: headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        board_id: board.id,
+        name: "Record added blocks",
+        enabled: true,
+        trigger: { event_types: ["block.created"] },
+        actions: [{ id: "notify", type: "notify" }],
+      }),
+    });
     expect(rule.status).toBe(201);
 
-    const command = await app.request(
-      `/v2/workspaces/${workspaceId}/boards/${board.id}/commands`,
-      {
-        method: "POST",
-        headers: headers({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          command_id: "automated-block",
-          kind: "block.create",
-          payload: { type: "core.document", content: { body: "# Signal" } },
-          expected: { revision_id: board.revision.id },
-        }),
-      },
-    );
+    const command = await app.request(`/v2/workspaces/${workspaceId}/boards/${board.id}/commands`, {
+      method: "POST",
+      headers: headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        command_id: "automated-block",
+        kind: "block.create",
+        payload: { type: "core.document", content: { body: "# Signal" } },
+        expected: { revision_id: board.revision.id },
+      }),
+    });
     expect(command.status).toBe(200);
 
-    const runs = await app.request(
-      `/v2/workspaces/${workspaceId}/automation-runs`,
-      { headers: headers() },
-    );
+    const runs = await app.request(`/v2/workspaces/${workspaceId}/automation-runs`, {
+      headers: headers(),
+    });
     expect(runs.status).toBe(200);
     const body = await runs.json();
     expect(body.data).toHaveLength(1);

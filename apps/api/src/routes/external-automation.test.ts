@@ -1,22 +1,22 @@
 import { createHmac } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Hono } from "hono";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../app.ts";
-import { resetEnvForTests } from "../env.ts";
-import { resetDb, setDbForTests } from "../db.ts";
 import { hashToken } from "../auth/tokens.ts";
+import { resetDb, setDbForTests } from "../db.ts";
+import { resetEnvForTests } from "../env.ts";
 import { createInMemoryDb } from "../test/mock-db.ts";
+import {
+  automationRoutes,
+  getAutomationEngine,
+  resetAutomationRoutesForTests,
+} from "./automations.ts";
 import {
   getIntegrationSyncEngine,
   getSyncedResourceState,
   integrationRoutes,
   resetIntegrationRoutesForTests,
 } from "./integrations.ts";
-import {
-  automationRoutes,
-  getAutomationEngine,
-  resetAutomationRoutesForTests,
-} from "./automations.ts";
 
 const token = "vb_pat_testtoken123456789012345678901";
 const workspaceId = "ws_test123";
@@ -89,39 +89,31 @@ describe("integration route factory", () => {
 
   it("creates scoped connections and only accepts a verified provider webhook", async () => {
     const app = appWith(integrationRoutes);
-    const create = await app.request(
-      `/v2/workspaces/${workspaceId}/integration-connections`,
-      {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          provider: "github",
-          display_name: "GitHub Issues",
-          webhook_secret: "webhook-secret",
-        }),
-      },
-    );
+    const create = await app.request(`/v2/workspaces/${workspaceId}/integration-connections`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        provider: "github",
+        display_name: "GitHub Issues",
+        webhook_secret: "webhook-secret",
+      }),
+    });
     expect(create.status).toBe(201);
     const connection = await create.json();
     expect(connection).not.toHaveProperty("webhook_secret");
 
-    const link = await app.request(
-      `/v2/workspaces/${workspaceId}/boards/brd_test123/sync-links`,
-      {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          connection_id: connection.id,
-          resource_id: "blk_state",
-          external_id: "acme/repo#1",
-          direction: "inbound",
-          field_mappings: [
-            { local_field: "state", external_field: "state", ownership: "external" },
-          ],
-          baseline: { state: "open" },
-        }),
-      },
-    );
+    const link = await app.request(`/v2/workspaces/${workspaceId}/boards/brd_test123/sync-links`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        connection_id: connection.id,
+        resource_id: "blk_state",
+        external_id: "acme/repo#1",
+        direction: "inbound",
+        field_mappings: [{ local_field: "state", external_field: "state", ownership: "external" }],
+        baseline: { state: "open" },
+      }),
+    });
     expect(link.status).toBe(201);
 
     const rawBody = new TextEncoder().encode(
@@ -148,10 +140,9 @@ describe("integration route factory", () => {
 
   it("is mounted on the documented V2 connection path", async () => {
     const app = createApp();
-    const response = await app.request(
-      `/v2/workspaces/${workspaceId}/integration-connections`,
-      { headers: authHeaders() },
-    );
+    const response = await app.request(`/v2/workspaces/${workspaceId}/integration-connections`, {
+      headers: authHeaders(),
+    });
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ data: [] });
   });
@@ -167,19 +158,16 @@ describe("automation route factory", () => {
 
   it("creates workspace-scoped rules and exposes approval-gated runs", async () => {
     const app = appWith(automationRoutes);
-    const create = await app.request(
-      `/v2/workspaces/${workspaceId}/automation-rules`,
-      {
-        method: "POST",
-        headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({
-          name: "Review completion",
-          enabled: true,
-          trigger: { event_types: ["kanban.card.transitioned"] },
-          actions: [{ id: "notify", type: "notify", requires_approval: true }],
-        }),
-      },
-    );
+    const create = await app.request(`/v2/workspaces/${workspaceId}/automation-rules`, {
+      method: "POST",
+      headers: authHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({
+        name: "Review completion",
+        enabled: true,
+        trigger: { event_types: ["kanban.card.transitioned"] },
+        actions: [{ id: "notify", type: "notify", requires_approval: true }],
+      }),
+    });
     expect(create.status).toBe(201);
     const rule = await create.json();
 
@@ -193,16 +181,16 @@ describe("automation route factory", () => {
     });
     expect(run?.state).toBe("awaiting_approval");
 
-    const list = await app.request(
-      `/v2/workspaces/${workspaceId}/automation-rules`,
-      { headers: authHeaders() },
-    );
+    const list = await app.request(`/v2/workspaces/${workspaceId}/automation-rules`, {
+      headers: authHeaders(),
+    });
     expect((await list.json()).data[0].id).toBe(rule.id);
 
-    const approve = await app.request(
-      `/v2/automation-runs/${run!.id}/actions/notify/approve`,
-      { method: "POST", headers: authHeaders() },
-    );
+    if (!run) throw new Error("expected automation run");
+    const approve = await app.request(`/v2/automation-runs/${run.id}/actions/notify/approve`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
     expect(approve.status).toBe(200);
     expect((await approve.json()).actions[0].state).toBe("failed");
   });

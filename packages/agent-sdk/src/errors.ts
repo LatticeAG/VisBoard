@@ -10,10 +10,7 @@ export class AgentSdkError extends Error {
 
 export class AgentModeError extends AgentSdkError {
   constructor(mode: string, operation: string) {
-    super(
-      `Agent mode '${mode}' cannot perform '${operation}'`,
-      "agent.mode_not_allowed",
-    );
+    super(`Agent mode '${mode}' cannot perform '${operation}'`, "agent.mode_not_allowed");
     this.name = "AgentModeError";
   }
 }
@@ -40,8 +37,8 @@ export class AgentIsolationError extends AgentSdkError {
 }
 
 export class HandoffStateError extends AgentSdkError {
-  constructor(message: string) {
-    super(message, "handoff.invalid_state");
+  constructor(message: string, code = "handoff.invalid_state") {
+    super(message, code);
     this.name = "HandoffStateError";
   }
 }

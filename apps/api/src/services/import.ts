@@ -1,23 +1,16 @@
-import {
-  checklistItems,
-  checklists,
-  files,
-  notes,
-  noteVersions,
-  projects,
-} from "@visboard/db";
+import { checklistItems, checklists, files, noteVersions, notes, projects } from "@visboard/db";
+import type { Database } from "@visboard/db";
 import { PREFIX, createId, slugify } from "@visboard/shared";
 import { and, eq, isNull } from "drizzle-orm";
-import JSZip from "jszip";
 import matter from "gray-matter";
-import type { Database } from "@visboard/db";
+import JSZip from "jszip";
 import type { AuthPrincipal } from "../auth/middleware.js";
-import { actorFromAuth } from "../lib/helpers.js";
 import { badRequest } from "../lib/errors.js";
-import { saveFile, buildStoragePath } from "../lib/storage.js";
-import { getWorkspaceBySlug } from "./workspace.js";
-import type { ExportManifest } from "./export.js";
+import { actorFromAuth } from "../lib/helpers.js";
+import { buildStoragePath, saveFile } from "../lib/storage.js";
 import { scheduleAgentsMdSync } from "./agents-md-sync.js";
+import type { ExportManifest } from "./export.js";
+import { getWorkspaceBySlug } from "./workspace.js";
 
 export type ImportSummary = {
   projects: number;
@@ -105,11 +98,7 @@ export async function importWorkspaceData(
       .select()
       .from(notes)
       .where(
-        and(
-          eq(notes.projectId, projectId),
-          eq(notes.slug, noteData.slug),
-          isNull(notes.deletedAt),
-        ),
+        and(eq(notes.projectId, projectId), eq(notes.slug, noteData.slug), isNull(notes.deletedAt)),
       )
       .limit(1);
 
@@ -195,12 +184,7 @@ export async function importWorkspaceData(
       const [existingItem] = await db
         .select()
         .from(checklistItems)
-        .where(
-          and(
-            eq(checklistItems.checklistId, checklistId),
-            eq(checklistItems.text, item.text),
-          ),
-        )
+        .where(and(eq(checklistItems.checklistId, checklistId), eq(checklistItems.text, item.text)))
         .limit(1);
 
       if (existingItem) {
@@ -246,11 +230,7 @@ export async function importWorkspaceData(
       .select()
       .from(files)
       .where(
-        and(
-          eq(files.projectId, projectId),
-          eq(files.name, fileData.name),
-          isNull(files.deletedAt),
-        ),
+        and(eq(files.projectId, projectId), eq(files.name, fileData.name), isNull(files.deletedAt)),
       )
       .limit(1);
 
@@ -338,8 +318,7 @@ async function parseZipBuffer(
       if (!project) continue;
 
       const alreadyInManifest = manifest.notes.some(
-        (n: ExportManifest["notes"][number]) =>
-          n.project_id === project.id && n.slug === noteSlug,
+        (n: ExportManifest["notes"][number]) => n.project_id === project.id && n.slug === noteSlug,
       );
       if (!alreadyInManifest) {
         manifest.notes.push({

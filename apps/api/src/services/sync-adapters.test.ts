@@ -2,11 +2,7 @@ import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { getSyncAdapter } from "./sync-adapters.js";
 
-function signedInput(
-  payload: unknown,
-  secret: string,
-  headers: Record<string, string>,
-) {
+function signedInput(payload: unknown, secret: string, headers: Record<string, string>) {
   const rawBody = new TextEncoder().encode(JSON.stringify(payload));
   const signature = createHmac("sha256", secret).update(rawBody).digest("hex");
   return {
@@ -84,9 +80,7 @@ describe("external sync adapters", () => {
         },
       }),
     );
-    const notionSignature = createHmac("sha256", "notion-secret")
-      .update(notionBody)
-      .digest("hex");
+    const notionSignature = createHmac("sha256", "notion-secret").update(notionBody).digest("hex");
     const [notionChange] = notion.normalizeWebhook({
       rawBody: notionBody,
       secret: "notion-secret",
@@ -111,9 +105,7 @@ describe("external sync adapters", () => {
         },
       }),
     );
-    const linearSignature = createHmac("sha256", "linear-secret")
-      .update(linearBody)
-      .digest("hex");
+    const linearSignature = createHmac("sha256", "linear-secret").update(linearBody).digest("hex");
     const [linearChange] = linear.normalizeWebhook({
       rawBody: linearBody,
       secret: "linear-secret",

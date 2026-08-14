@@ -18,13 +18,13 @@ Use **Hono 4.x** as the standalone HTTP framework in `apps/api`:
 
 ## Consequences
 
-- No Next.js API routes — API is independently deployable and testable
+- No Next.js API routes: API is independently deployable and testable
 - Hono's small footprint suits self-hosted OSS deployments
 - OpenAPI spec can be generated or maintained alongside routes
 - Wave 2 builds `apps/api` on top of `@visboard/db` and `@visboard/shared`
 
 ## Alternatives considered
 
-- **Express** — larger ecosystem but less ergonomic TypeScript DX
-- **Fastify** — viable; Hono chosen for middleware composition and edge portability
-- **tRPC** — explicitly excluded; REST + OpenAPI preferred for agent interoperability
+- **Express**: larger ecosystem but less ergonomic TypeScript DX
+- **Fastify**: viable; Hono chosen for middleware composition and edge portability
+- **tRPC**: explicitly excluded; REST + OpenAPI preferred for agent interoperability

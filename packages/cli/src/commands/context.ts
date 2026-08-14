@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import { loadConfig } from "../config.js";
 import { createClient, requireWorkspace } from "../client.js";
+import { loadConfig } from "../config.js";
 import { getGlobalOptions } from "../globals.js";
 import { outputData, outputText } from "../output.js";
 
@@ -11,7 +11,10 @@ export function registerContextCommands(program: Command): void {
     .requiredOption("--project <slug>", "project slug")
     .option("--include <mode>", "headings or bodies", "headings")
     .option("--tokens", "include token usage hints")
-    .action(async function (this: Command, opts: { project: string; include: string; tokens?: boolean }) {
+    .action(async function (
+      this: Command,
+      opts: { project: string; include: string; tokens?: boolean },
+    ) {
       const globals = getGlobalOptions(this);
       const { client, workspace } = await createClient(globals);
       const ws = requireWorkspace(workspace);

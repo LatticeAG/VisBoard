@@ -1,12 +1,12 @@
 import { checklistItems, checklists } from "@visboard/db";
+import type { Database } from "@visboard/db";
 import { EventType, PREFIX, createId } from "@visboard/shared";
 import { and, eq, isNull } from "drizzle-orm";
-import type { Database } from "@visboard/db";
 import type { AuthPrincipal } from "../auth/middleware.js";
 import { notFound } from "../lib/errors.js";
-import { getProjectBySlug } from "./project.js";
 import { scheduleAgentsMdSync } from "./agents-md-sync.js";
 import { createEvent } from "./event.js";
+import { getProjectBySlug } from "./project.js";
 
 export async function listChecklists(
   db: Database["db"],
@@ -14,18 +14,11 @@ export async function listChecklists(
   projectSlug: string,
   auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(
-    db,
-    workspaceSlug,
-    projectSlug,
-    auth,
-  );
+  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
   const rows = await db
     .select()
     .from(checklists)
-    .where(
-      and(eq(checklists.projectId, project.id), isNull(checklists.deletedAt)),
-    );
+    .where(and(eq(checklists.projectId, project.id), isNull(checklists.deletedAt)));
 
   const result = [];
   for (const chk of rows) {
@@ -60,6 +53,7 @@ export async function createChecklist(
       updatedAt: now,
     })
     .returning();
+  if (!chk) throw new Error("Failed to create checklist");
 
   await createEvent(db, project.id, auth, {
     type: EventType.CHECKLIST_CREATED,
@@ -69,7 +63,7 @@ export async function createChecklist(
 
   scheduleAgentsMdSync(project.id);
 
-  return formatChecklist(chk!, []);
+  return formatChecklist(chk, []);
 }
 
 export async function getChecklist(
@@ -79,12 +73,7 @@ export async function getChecklist(
   checklistId: string,
   auth?: AuthPrincipal,
 ) {
-  const { project } = await getProjectBySlug(
-    db,
-    workspaceSlug,
-    projectSlug,
-    auth,
-  );
+  const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug, auth);
   const [chk] = await db
     .select()
     .from(checklists)
@@ -129,10 +118,11 @@ export async function updateChecklist(
     .set({ ...input, updatedAt: now })
     .where(eq(checklists.id, checklist.id))
     .returning();
+  if (!updated) throw new Error("Failed to update checklist");
 
   scheduleAgentsMdSync(checklist.projectId);
 
-  return formatChecklist(updated!, items);
+  return formatChecklist(updated, items);
 }
 
 export async function deleteChecklist(
@@ -142,13 +132,7 @@ export async function deleteChecklist(
   checklistId: string,
   _auth: AuthPrincipal,
 ) {
-  const { checklist } = await getChecklist(
-    db,
-    workspaceSlug,
-    projectSlug,
-    checklistId,
-    _auth,
-  );
+  const { checklist } = await getChecklist(db, workspaceSlug, projectSlug, checklistId, _auth);
   const now = new Date();
 
   await db
@@ -176,8 +160,7 @@ export async function addChecklistItem(
   );
   const now = new Date();
   const itemId = createId(PREFIX.item);
-  const sortOrder =
-    input.sort_order ?? Math.max(-1, ...items.map((i) => i.sortOrder)) + 1;
+  const sortOrder = input.sort_order ?? Math.max(-1, ...items.map((i) => i.sortOrder)) + 1;
 
   const [item] = await db
     .insert(checklistItems)
@@ -190,6 +173,7 @@ export async function addChecklistItem(
       updatedAt: now,
     })
     .returning();
+  if (!item) throw new Error("Failed to add checklist item");
 
   await createEvent(db, checklist.projectId, auth, {
     type: EventType.CHECKLIST_ITEM_UPDATED,
@@ -199,7 +183,7 @@ export async function addChecklistItem(
 
   scheduleAgentsMdSync(checklist.projectId);
 
-  return formatChecklistItem(item!);
+  return formatChecklistItem(item);
 }
 
 export async function updateChecklistItem(
@@ -218,23 +202,12 @@ export async function updateChecklistItem(
     blocked_by: string[];
   }>,
 ) {
-  const { checklist } = await getChecklist(
-    db,
-    workspaceSlug,
-    projectSlug,
-    checklistId,
-    auth,
-  );
+  const { checklist } = await getChecklist(db, workspaceSlug, projectSlug, checklistId, auth);
 
   const [existing] = await db
     .select()
     .from(checklistItems)
-    .where(
-      and(
-        eq(checklistItems.checklistId, checklistId),
-        eq(checklistItems.id, itemId),
-      ),
-    )
+    .where(and(eq(checklistItems.checklistId, checklistId), eq(checklistItems.id, itemId)))
     .limit(1);
 
   if (!existing) throw notFound(`Checklist item '${itemId}' not found`);
@@ -267,8 +240,9 @@ export async function updateChecklistItem(
     .from(checklistItems)
     .where(eq(checklistItems.id, itemId))
     .limit(1);
+  if (!updated) throw new Error("Failed to load updated checklist item");
 
-  return formatChecklistItem(updated!);
+  return formatChecklistItem(updated);
 }
 
 function formatChecklistItem(item: typeof checklistItems.$inferSelect) {

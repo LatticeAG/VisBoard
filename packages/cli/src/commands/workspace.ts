@@ -1,6 +1,6 @@
 import type { Command } from "commander";
-import { updateConfig } from "../config.js";
 import { createClient } from "../client.js";
+import { updateConfig } from "../config.js";
 import { getGlobalOptions } from "../globals.js";
 import { formatTable, outputData, outputText } from "../output.js";
 

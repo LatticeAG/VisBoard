@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import type { Note } from '@visboard/sdk';
-import { MarkdownPreview } from './markdown-preview';
+import type { Note } from "@visboard/sdk";
+import { useEffect, useState } from "react";
+import { MarkdownPreview } from "./markdown-preview";
 
 interface NoteEditorProps {
   note: Note | null;
@@ -12,13 +12,13 @@ interface NoteEditorProps {
     frontmatter: Record<string, unknown>;
   }) => void;
   saving?: boolean;
-  saveMessage?: { type: 'success' | 'error'; text: string } | null;
+  saveMessage?: { type: "success" | "error"; text: string } | null;
 }
 
 export function NoteEditor({ note, onSave, saving, saveMessage }: NoteEditorProps) {
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [frontmatterText, setFrontmatterText] = useState('{}');
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [frontmatterText, setFrontmatterText] = useState("{}");
   const [frontmatterError, setFrontmatterError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -44,7 +44,7 @@ export function NoteEditor({ note, onSave, saving, saveMessage }: NoteEditorProp
       frontmatter = JSON.parse(frontmatterText);
       setFrontmatterError(null);
     } catch {
-      setFrontmatterError('Invalid JSON in frontmatter');
+      setFrontmatterError("Invalid JSON in frontmatter");
       return;
     }
     onSave({ title, body, frontmatter });
@@ -67,12 +67,12 @@ export function NoteEditor({ note, onSave, saving, saveMessage }: NoteEditorProp
           disabled={saving}
           className="border border-accent bg-accent-dim px-3 py-1 font-mono text-xs text-text hover:bg-accent disabled:opacity-50"
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? "Saving…" : "Save"}
         </button>
         {saveMessage && (
           <span
             className={`font-mono text-xs ${
-              saveMessage.type === 'success' ? 'text-success' : 'text-red-400'
+              saveMessage.type === "success" ? "text-success" : "text-red-400"
             }`}
           >
             {saveMessage.text}

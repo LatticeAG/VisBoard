@@ -12,13 +12,22 @@
       "import": "./dist/index.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LatticeAG/VisBoard.git",
+    "directory": "packages/agent-sdk"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@visboard/sdk": "workspace:*"
+    "@visboard/sdk": "workspace:*",
+    "@visboard/shared": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

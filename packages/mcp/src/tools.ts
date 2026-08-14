@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { VisBoardClient, VisBoardError } from "@visboard/sdk";
+import { type VisBoardClient, VisBoardError } from "@visboard/sdk";
 import { z } from "zod";
 import { errorResult, jsonResult, textResult } from "./format.js";
 
@@ -50,9 +50,7 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
       },
     },
     async ({ workspace, project, include }) =>
-      runTool(() =>
-        client.context.get(workspace, project, include ? { include } : {}),
-      ),
+      runTool(() => client.context.get(workspace, project, include ? { include } : {})),
   );
 
   server.registerTool(
@@ -83,8 +81,7 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
         project: projectSchema,
       },
     },
-    async ({ workspace, project }) =>
-      runTool(() => client.notes.list(workspace, project)),
+    async ({ workspace, project }) => runTool(() => client.notes.list(workspace, project)),
   );
 
   server.registerTool(
@@ -111,10 +108,7 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
         slug: z.string().min(1).describe("Note slug"),
         title: z.string().min(1).describe("Note title (required for create)"),
         body: z.string().optional().describe("Markdown body"),
-        frontmatter: z
-          .record(z.unknown())
-          .optional()
-          .describe("YAML frontmatter as JSON object"),
+        frontmatter: z.record(z.unknown()).optional().describe("YAML frontmatter as JSON object"),
       },
     },
     async ({ workspace, project, slug, title, body, frontmatter }) =>
@@ -155,8 +149,7 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
         project: projectSchema,
       },
     },
-    async ({ workspace, project }) =>
-      runTool(() => client.checklists.list(workspace, project)),
+    async ({ workspace, project }) => runTool(() => client.checklists.list(workspace, project)),
   );
 
   server.registerTool(
@@ -168,10 +161,7 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
         project: projectSchema,
         checklist_id: z.string().min(1).describe("Checklist id"),
         item_id: z.string().min(1).describe("Checklist item id"),
-        done: z
-          .boolean()
-          .optional()
-          .describe("Set done state; omit to toggle current value"),
+        done: z.boolean().optional().describe("Set done state; omit to toggle current value"),
       },
     },
     async ({ workspace, project, checklist_id, item_id, done }) =>
@@ -179,11 +169,7 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
         let nextDone = done;
 
         if (nextDone === undefined) {
-          const checklist = await client.checklists.get(
-            workspace,
-            project,
-            checklist_id,
-          );
+          const checklist = await client.checklists.get(workspace, project, checklist_id);
           const item = checklist.items.find((entry) => entry.id === item_id);
           if (!item) {
             throw new Error(`Checklist item '${item_id}' not found`);
@@ -191,13 +177,9 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
           nextDone = !item.done;
         }
 
-        return client.checklists.updateItem(
-          workspace,
-          project,
-          checklist_id,
-          item_id,
-          { done: nextDone },
-        );
+        return client.checklists.updateItem(workspace, project, checklist_id, item_id, {
+          done: nextDone,
+        });
       }),
   );
 
@@ -211,10 +193,7 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
         type: z.string().min(1).describe("Event type (e.g. agent.turn.completed)"),
         resource_type: z.string().optional().describe("Related resource type"),
         resource_id: z.string().optional().describe("Related resource id"),
-        payload: z
-          .record(z.unknown())
-          .optional()
-          .describe("Additional event payload"),
+        payload: z.record(z.unknown()).optional().describe("Additional event payload"),
       },
     },
     async ({ workspace, project, type, resource_type, resource_id, payload }) =>
@@ -262,10 +241,7 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
       description: "List agents in a workspace, optionally filtered by project",
       inputSchema: {
         workspace: workspaceSchema,
-        project: z
-          .string()
-          .optional()
-          .describe("Filter agents scoped to this project slug"),
+        project: z.string().optional().describe("Filter agents scoped to this project slug"),
       },
     },
     async ({ workspace, project }) =>
@@ -276,8 +252,7 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
           const projectRecord = await client.projects.get(workspace, project);
           agents = agents.filter(
             (agent) =>
-              agent.project_ids.length === 0 ||
-              agent.project_ids.includes(projectRecord.id),
+              agent.project_ids.length === 0 || agent.project_ids.includes(projectRecord.id),
           );
         }
 
@@ -297,10 +272,7 @@ export function registerTools(server: McpServer, client: VisBoardClient): void {
           .min(1)
           .describe("Permission scopes (e.g. read, write:checklists)"),
         description: z.string().optional().describe("Agent description"),
-        project: z
-          .string()
-          .optional()
-          .describe("Limit agent to this project slug"),
+        project: z.string().optional().describe("Limit agent to this project slug"),
       },
     },
     async ({ workspace, name, scopes, description, project }) =>

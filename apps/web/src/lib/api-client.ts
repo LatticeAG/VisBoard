@@ -1,32 +1,32 @@
-import { VisBoardClient, VisBoardError } from '@visboard/sdk';
+import { VisBoardClient, VisBoardError } from "@visboard/sdk";
 import type {
-  Workspace,
-  Project,
-  Note,
-  ChecklistWithItems,
-  FileRecord,
-  EventRecord,
   Agent,
-  CreateNoteInput,
+  ChecklistWithItems,
   CreateChecklistInput,
   CreateChecklistItemInput,
+  CreateNoteInput,
   CreateWorkspaceInput,
-} from '@visboard/sdk';
-import { getToken, getApiUrl } from './auth';
+  EventRecord,
+  FileRecord,
+  Note,
+  Project,
+  Workspace,
+} from "@visboard/sdk";
+import { getApiUrl, getToken } from "./auth";
 
 let client: VisBoardClient | null = null;
 
 export function getClient(): VisBoardClient {
-  const baseUrl = typeof window !== 'undefined' ? getApiUrl() : getApiUrl();
+  const baseUrl = typeof window !== "undefined" ? getApiUrl() : getApiUrl();
   if (!client) {
     client = new VisBoardClient({
       baseUrl,
-      token: typeof window !== 'undefined' ? getToken() ?? undefined : undefined,
+      token: typeof window !== "undefined" ? (getToken() ?? undefined) : undefined,
     });
   } else {
     client = new VisBoardClient({
       baseUrl,
-      token: typeof window !== 'undefined' ? getToken() ?? undefined : undefined,
+      token: typeof window !== "undefined" ? (getToken() ?? undefined) : undefined,
     });
   }
   return client;
@@ -35,17 +35,17 @@ export function getClient(): VisBoardClient {
 export function refreshClient(): VisBoardClient {
   client = new VisBoardClient({
     baseUrl: getApiUrl(),
-    token: typeof window !== 'undefined' ? getToken() ?? undefined : undefined,
+    token: typeof window !== "undefined" ? (getToken() ?? undefined) : undefined,
   });
   return client;
 }
 
 export function isDemoMode(): boolean {
-  if (typeof window === 'undefined') return false;
-  return new URLSearchParams(window.location.search).get('demo') === '1';
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("demo") === "1";
 }
 
-export type ApiErrorKind = 'auth' | 'network' | 'api';
+export type ApiErrorKind = "auth" | "network" | "api";
 
 export type ApiResult<T> =
   | { ok: true; data: T; mock: false }
@@ -56,39 +56,36 @@ function parseError(err: unknown): { error: string; status?: number; kind: ApiEr
   if (err instanceof VisBoardError) {
     if (err.status === 401) {
       return {
-        error: 'Unauthorized — paste your personal access token in Settings',
+        error: "Unauthorized: paste your personal access token in Settings",
         status: 401,
-        kind: 'auth',
+        kind: "auth",
       };
     }
     return {
       error: err.detail ?? err.title,
       status: err.status,
-      kind: 'api',
+      kind: "api",
     };
   }
   if (
     err instanceof TypeError ||
     (err instanceof Error &&
-      (err.message.includes('fetch') ||
-        err.message.includes('Failed to fetch') ||
-        err.message.includes('NetworkError')))
+      (err.message.includes("fetch") ||
+        err.message.includes("Failed to fetch") ||
+        err.message.includes("NetworkError")))
   ) {
     return {
-      error: 'Cannot connect to API — ensure the server is running and the API URL is correct',
-      kind: 'network',
+      error: "Cannot connect to API: ensure the server is running and the API URL is correct",
+      kind: "network",
     };
   }
   return {
-    error: err instanceof Error ? err.message : 'Unknown error',
-    kind: 'api',
+    error: err instanceof Error ? err.message : "Unknown error",
+    kind: "api",
   };
 }
 
-async function withApi<T>(
-  fn: () => Promise<T>,
-  fallback?: T,
-): Promise<ApiResult<T>> {
+async function withApi<T>(fn: () => Promise<T>, fallback?: T): Promise<ApiResult<T>> {
   try {
     const data = await fn();
     return { ok: true, data, mock: false };
@@ -97,15 +94,21 @@ async function withApi<T>(
       return { ok: true, data: fallback, mock: true };
     }
     const parsed = parseError(err);
-    return { ok: false, error: parsed.error, mock: false, status: parsed.status, kind: parsed.kind };
+    return {
+      ok: false,
+      error: parsed.error,
+      mock: false,
+      status: parsed.status,
+      kind: parsed.kind,
+    };
   }
 }
 
 const MOCK_WORKSPACES: Workspace[] = [
   {
-    id: 'ws_01ARZ3NDEKTSV4RRFFQ69G5FAA',
-    slug: 'demo',
-    name: 'Demo Workspace',
+    id: "ws_01ARZ3NDEKTSV4RRFFQ69G5FAA",
+    slug: "demo",
+    name: "Demo Workspace",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -113,12 +116,12 @@ const MOCK_WORKSPACES: Workspace[] = [
 
 const MOCK_PROJECTS: Project[] = [
   {
-    id: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAB',
-    workspace_id: 'ws_01ARZ3NDEKTSV4RRFFQ69G5FAA',
-    slug: 'demo',
-    name: 'Demo Project',
-    description: 'Mock project — add ?demo=1 to explore without API',
-    status: 'active',
+    id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAB",
+    workspace_id: "ws_01ARZ3NDEKTSV4RRFFQ69G5FAA",
+    slug: "demo",
+    name: "Demo Project",
+    description: "Mock project: add ?demo=1 to explore without API",
+    status: "active",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -126,36 +129,36 @@ const MOCK_PROJECTS: Project[] = [
 
 const MOCK_NOTES: Note[] = [
   {
-    id: 'nt_01ARZ3NDEKTSV4RRFFQ69G5FAC',
-    project_id: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAB',
-    slug: 'purpose',
-    title: 'Purpose',
-    body: '# Purpose\n\nShip VisBoard OSS Phase 1.\n\n- API server\n- Web UI\n- CLI',
-    frontmatter: { status: 'draft', tags: ['mock'] },
+    id: "nt_01ARZ3NDEKTSV4RRFFQ69G5FAC",
+    project_id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAB",
+    slug: "purpose",
+    title: "Purpose",
+    body: "# Purpose\n\nShip VisBoard OSS Phase 1.\n\n- API server\n- Web UI\n- CLI",
+    frontmatter: { status: "draft", tags: ["mock"] },
     is_system: false,
     system_key: null,
     version: 1,
-    created_by_type: 'user',
-    created_by_id: 'user_01ARZ3NDEKTSV4RRFFQ69G5FAD',
-    updated_by_type: 'user',
-    updated_by_id: 'user_01ARZ3NDEKTSV4RRFFQ69G5FAD',
+    created_by_type: "user",
+    created_by_id: "user_01ARZ3NDEKTSV4RRFFQ69G5FAD",
+    updated_by_type: "user",
+    updated_by_id: "user_01ARZ3NDEKTSV4RRFFQ69G5FAD",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
   {
-    id: 'nt_01ARZ3NDEKTSV4RRFFQ69G5FAE',
-    project_id: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAB',
-    slug: 'agents-md',
-    title: 'AGENTS.md',
-    body: '# AGENTS.md\n\n> Generated by VisBoard (mock)',
+    id: "nt_01ARZ3NDEKTSV4RRFFQ69G5FAE",
+    project_id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAB",
+    slug: "agents-md",
+    title: "AGENTS.md",
+    body: "# AGENTS.md\n\n> Generated by VisBoard (mock)",
     frontmatter: {},
     is_system: true,
-    system_key: 'agents.md',
+    system_key: "agents.md",
     version: 1,
-    created_by_type: 'system',
-    created_by_id: 'system',
-    updated_by_type: 'system',
-    updated_by_id: 'system',
+    created_by_type: "system",
+    created_by_id: "system",
+    updated_by_type: "system",
+    updated_by_id: "system",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   },
@@ -163,15 +166,15 @@ const MOCK_NOTES: Note[] = [
 
 const MOCK_CHECKLISTS: ChecklistWithItems[] = [
   {
-    id: 'chk_01ARZ3NDEKTSV4RRFFQ69G5FAF',
-    project_id: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAB',
-    title: 'Launch',
+    id: "chk_01ARZ3NDEKTSV4RRFFQ69G5FAF",
+    project_id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAB",
+    title: "Launch",
     source_note_id: null,
     items: [
       {
-        id: 'item_01ARZ3NDEKTSV4RRFFQ69G5FAG',
-        checklist_id: 'chk_01ARZ3NDEKTSV4RRFFQ69G5FAF',
-        text: 'Build web UI',
+        id: "item_01ARZ3NDEKTSV4RRFFQ69G5FAG",
+        checklist_id: "chk_01ARZ3NDEKTSV4RRFFQ69G5FAF",
+        text: "Build web UI",
         done: true,
         sort_order: 0,
         assignee_type: null,
@@ -182,9 +185,9 @@ const MOCK_CHECKLISTS: ChecklistWithItems[] = [
         updated_at: new Date().toISOString(),
       },
       {
-        id: 'item_01ARZ3NDEKTSV4RRFFQ69G5FAH',
-        checklist_id: 'chk_01ARZ3NDEKTSV4RRFFQ69G5FAF',
-        text: 'Connect to API',
+        id: "item_01ARZ3NDEKTSV4RRFFQ69G5FAH",
+        checklist_id: "chk_01ARZ3NDEKTSV4RRFFQ69G5FAF",
+        text: "Connect to API",
         done: false,
         sort_order: 1,
         assignee_type: null,
@@ -202,39 +205,39 @@ const MOCK_CHECKLISTS: ChecklistWithItems[] = [
 
 const MOCK_FILES: FileRecord[] = [
   {
-    id: 'file_01ARZ3NDEKTSV4RRFFQ69G5FAI',
-    project_id: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAB',
-    name: 'spec.md',
-    mime_type: 'text/markdown',
+    id: "file_01ARZ3NDEKTSV4RRFFQ69G5FAI",
+    project_id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAB",
+    name: "spec.md",
+    mime_type: "text/markdown",
     size_bytes: 1024,
-    storage_path: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAB/file_01ARZ3NDEKTSV4RRFFQ69G5FAI/spec.md',
+    storage_path: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAB/file_01ARZ3NDEKTSV4RRFFQ69G5FAI/spec.md",
     sha256: null,
-    created_by_type: 'user',
-    created_by_id: 'user_01ARZ3NDEKTSV4RRFFQ69G5FAD',
+    created_by_type: "user",
+    created_by_id: "user_01ARZ3NDEKTSV4RRFFQ69G5FAD",
     created_at: new Date().toISOString(),
   },
 ];
 
 const MOCK_EVENTS: EventRecord[] = [
   {
-    id: 'evt_01ARZ3NDEKTSV4RRFFQ69G5FAJ',
-    project_id: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAB',
-    type: 'note.created',
-    actor_type: 'user',
-    actor_id: 'user_01ARZ3NDEKTSV4RRFFQ69G5FAD',
-    resource_type: 'note',
-    resource_id: 'nt_01ARZ3NDEKTSV4RRFFQ69G5FAC',
-    payload: { title: 'Purpose' },
+    id: "evt_01ARZ3NDEKTSV4RRFFQ69G5FAJ",
+    project_id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAB",
+    type: "note.created",
+    actor_type: "user",
+    actor_id: "user_01ARZ3NDEKTSV4RRFFQ69G5FAD",
+    resource_type: "note",
+    resource_id: "nt_01ARZ3NDEKTSV4RRFFQ69G5FAC",
+    payload: { title: "Purpose" },
     created_at: new Date(Date.now() - 60000).toISOString(),
   },
   {
-    id: 'evt_01ARZ3NDEKTSV4RRFFQ69G5FAK',
-    project_id: 'prj_01ARZ3NDEKTSV4RRFFQ69G5FAB',
-    type: 'checklist.item.updated',
-    actor_type: 'agent',
-    actor_id: 'agent_01ARZ3NDEKTSV4RRFFQ69G5FAL',
-    resource_type: 'checklist_item',
-    resource_id: 'item_01ARZ3NDEKTSV4RRFFQ69G5FAG',
+    id: "evt_01ARZ3NDEKTSV4RRFFQ69G5FAK",
+    project_id: "prj_01ARZ3NDEKTSV4RRFFQ69G5FAB",
+    type: "checklist.item.updated",
+    actor_type: "agent",
+    actor_id: "agent_01ARZ3NDEKTSV4RRFFQ69G5FAL",
+    resource_type: "checklist_item",
+    resource_id: "item_01ARZ3NDEKTSV4RRFFQ69G5FAG",
     payload: { done: true },
     created_at: new Date(Date.now() - 30000).toISOString(),
   },
@@ -242,16 +245,16 @@ const MOCK_EVENTS: EventRecord[] = [
 
 const MOCK_AGENTS: Agent[] = [
   {
-    id: 'agent_01ARZ3NDEKTSV4RRFFQ69G5FAL',
-    workspace_id: 'ws_01ARZ3NDEKTSV4RRFFQ69G5FAA',
-    name: 'demo-agent',
-    description: 'Mock agent for demo mode',
+    id: "agent_01ARZ3NDEKTSV4RRFFQ69G5FAL",
+    workspace_id: "ws_01ARZ3NDEKTSV4RRFFQ69G5FAA",
+    name: "demo-agent",
+    description: "Mock agent for demo mode",
     capabilities: [],
-    scopes: ['read', 'write'],
-    project_ids: ['prj_01ARZ3NDEKTSV4RRFFQ69G5FAB'],
-    token_prefix: 'vb_agt_demo',
-    status: 'active',
-    created_by_id: 'user_01ARZ3NDEKTSV4RRFFQ69G5FAD',
+    scopes: ["read", "write"],
+    project_ids: ["prj_01ARZ3NDEKTSV4RRFFQ69G5FAB"],
+    token_prefix: "vb_agt_demo",
+    status: "active",
+    created_by_id: "user_01ARZ3NDEKTSV4RRFFQ69G5FAD",
     created_at: new Date().toISOString(),
   },
 ];
@@ -261,19 +264,16 @@ export const api = {
     check: () => withApi(() => getClient().health.check()),
   },
   workspaces: {
-    list: () =>
-      withApi(() => getClient().workspaces.list(), MOCK_WORKSPACES),
+    list: () => withApi(() => getClient().workspaces.list(), MOCK_WORKSPACES),
     get: (ws: string) =>
       withApi(
         () => getClient().workspaces.get(ws),
         MOCK_WORKSPACES.find((w) => w.slug === ws) ?? MOCK_WORKSPACES[0],
       ),
-    create: (input: CreateWorkspaceInput) =>
-      withApi(() => getClient().workspaces.create(input)),
+    create: (input: CreateWorkspaceInput) => withApi(() => getClient().workspaces.create(input)),
   },
   projects: {
-    list: (ws: string) =>
-      withApi(() => getClient().projects.list(ws), MOCK_PROJECTS),
+    list: (ws: string) => withApi(() => getClient().projects.list(ws), MOCK_PROJECTS),
     get: (ws: string, p: string) =>
       withApi(
         () => getClient().projects.get(ws, p),
@@ -281,8 +281,7 @@ export const api = {
       ),
   },
   notes: {
-    list: (ws: string, p: string) =>
-      withApi(() => getClient().notes.list(ws, p), MOCK_NOTES),
+    list: (ws: string, p: string) => withApi(() => getClient().notes.list(ws, p), MOCK_NOTES),
     get: (ws: string, p: string, id: string) =>
       withApi(
         () => getClient().notes.get(ws, p, id),
@@ -298,7 +297,8 @@ export const api = {
       version: number,
     ) => {
       const fallback = (): Note => {
-        const base = MOCK_NOTES.find((n) => n.id === id) ?? MOCK_NOTES[0]!;
+        const base = MOCK_NOTES.find((n) => n.id === id) ?? MOCK_NOTES[0];
+        if (!base) throw new Error("MOCK_NOTES is empty");
         return {
           ...base,
           title: body.title ?? base.title,
@@ -308,10 +308,7 @@ export const api = {
           updated_at: new Date().toISOString(),
         };
       };
-      return withApi(
-        () => getClient().notes.update(ws, p, id, body, `W/"${version}"`),
-        fallback(),
-      );
+      return withApi(() => getClient().notes.update(ws, p, id, body, `W/"${version}"`), fallback());
     },
   },
   checklists: {
@@ -319,12 +316,7 @@ export const api = {
       withApi(() => getClient().checklists.list(ws, p), MOCK_CHECKLISTS),
     create: (ws: string, p: string, input: CreateChecklistInput) =>
       withApi(() => getClient().checklists.create(ws, p, input)),
-    addItem: (
-      ws: string,
-      p: string,
-      checklistId: string,
-      input: CreateChecklistItemInput,
-    ) =>
+    addItem: (ws: string, p: string, checklistId: string, input: CreateChecklistItemInput) =>
       withApi(() => getClient().checklists.addItem(ws, p, checklistId, input)),
     updateItem: (
       ws: string,
@@ -333,43 +325,36 @@ export const api = {
       itemId: string,
       body: { done?: boolean },
     ) => {
-      const fallback =
-        MOCK_CHECKLISTS[0]!.items.find((i) => i.id === itemId) ??
-        MOCK_CHECKLISTS[0]!.items[0]!;
-      return withApi(
-        () => getClient().checklists.updateItem(ws, p, checklistId, itemId, body),
-        { ...fallback, ...body },
-      );
+      const mockChecklist = MOCK_CHECKLISTS[0];
+      if (!mockChecklist) throw new Error("MOCK_CHECKLISTS is empty");
+      const fallback = mockChecklist.items.find((i) => i.id === itemId) ?? mockChecklist.items[0];
+      if (!fallback) throw new Error("MOCK_CHECKLISTS items are empty");
+      return withApi(() => getClient().checklists.updateItem(ws, p, checklistId, itemId, body), {
+        ...fallback,
+        ...body,
+      });
     },
   },
   files: {
-    list: (ws: string, p: string) =>
-      withApi(() => getClient().files.list(ws, p), MOCK_FILES),
+    list: (ws: string, p: string) => withApi(() => getClient().files.list(ws, p), MOCK_FILES),
     upload: (ws: string, p: string, file: File) =>
-      withApi(() =>
-        getClient().files.upload(ws, p, { file, filename: file.name }),
-      ),
+      withApi(() => getClient().files.upload(ws, p, { file, filename: file.name })),
     download: (ws: string, p: string, fileId: string) =>
       withApi(() => getClient().files.download(ws, p, fileId)),
   },
   agents: {
-    list: (ws: string) =>
-      withApi(() => getClient().agents.list(ws), MOCK_AGENTS),
+    list: (ws: string) => withApi(() => getClient().agents.list(ws), MOCK_AGENTS),
   },
   agentsMd: {
-    sync: (ws: string, p: string) =>
-      withApi(() => getClient().agentsMd.sync(ws, p)),
+    sync: (ws: string, p: string) => withApi(() => getClient().agentsMd.sync(ws, p)),
   },
   events: {
     list: (ws: string, p: string, params?: { limit?: number }) =>
-      withApi(
-        () => getClient().events.list(ws, p, params),
-        { data: MOCK_EVENTS, pagination: { next_cursor: null, has_more: false } },
-      ),
-    listRecentAcrossProjects: async (
-      ws: string,
-      limit = 20,
-    ): Promise<ApiResult<EventRecord[]>> => {
+      withApi(() => getClient().events.list(ws, p, params), {
+        data: MOCK_EVENTS,
+        pagination: { next_cursor: null, has_more: false },
+      }),
+    listRecentAcrossProjects: async (ws: string, limit = 20): Promise<ApiResult<EventRecord[]>> => {
       const projectsResult = await api.projects.list(ws);
       if (!projectsResult.ok) {
         return projectsResult;
@@ -381,9 +366,7 @@ export const api = {
 
       const allEvents: EventRecord[] = [];
       const results = await Promise.all(
-        projectsResult.data.map((project) =>
-          api.events.list(ws, project.slug, { limit: 50 }),
-        ),
+        projectsResult.data.map((project) => api.events.list(ws, project.slug, { limit: 50 })),
       );
 
       for (const result of results) {
@@ -392,10 +375,7 @@ export const api = {
         }
       }
 
-      allEvents.sort(
-        (a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-      );
+      allEvents.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       return { ok: true, data: allEvents.slice(0, limit), mock: false };
     },
@@ -403,13 +383,11 @@ export const api = {
 };
 
 export function getEventsStreamUrl(ws: string, project: string): string {
-  const base = getApiUrl().replace(/\/$/, '');
+  const base = getApiUrl().replace(/\/$/, "");
   const token = getToken();
-  const url = new URL(
-    `${base}/workspaces/${ws}/projects/${project}/events/stream`,
-  );
+  const url = new URL(`${base}/workspaces/${ws}/projects/${project}/events/stream`);
   if (token) {
-    url.searchParams.set('token', token);
+    url.searchParams.set("token", token);
   }
   return url.toString();
 }

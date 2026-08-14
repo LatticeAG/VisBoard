@@ -2,8 +2,9 @@
 # VisBoard OSS smoke test — requires API on localhost:8080
 set -euo pipefail
 
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export VISBOARD_ENDPOINT="${VISBOARD_ENDPOINT:-http://localhost:8080/v1}"
-CLI="pnpm --filter @visboard/cli exec visboard --"
+CLI="node ${ROOT}/packages/cli/dist/index.js"
 
 echo "==> Bootstrap workspace"
 OUT=$($CLI auth bootstrap --name "Smoke Test" --slug smoke --json)

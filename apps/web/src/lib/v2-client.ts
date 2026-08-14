@@ -1,10 +1,10 @@
-import { VisBoardClient } from '@visboard/sdk';
-import { getApiUrl, getToken } from './auth';
+import { VisBoardClient } from "@visboard/sdk";
+import { getApiUrl, getToken } from "./auth";
 
 function v2BaseUrl(): string {
-  const configured = getApiUrl().replace(/\/$/, '');
-  if (configured.endsWith('/v1')) return `${configured.slice(0, -3)}/v2`;
-  if (configured.endsWith('/v2')) return configured;
+  const configured = getApiUrl().replace(/\/$/, "");
+  if (configured.endsWith("/v1")) return `${configured.slice(0, -3)}/v2`;
+  if (configured.endsWith("/v2")) return configured;
   return `${configured}/v2`;
 }
 
@@ -12,6 +12,6 @@ function v2BaseUrl(): string {
 export function getV2Client(): VisBoardClient {
   return new VisBoardClient({
     baseUrl: v2BaseUrl(),
-    token: typeof window === 'undefined' ? undefined : getToken() ?? undefined,
+    token: typeof window === "undefined" ? undefined : (getToken() ?? undefined),
   });
 }

@@ -1,10 +1,10 @@
 import { createWriteStream } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import type { Command } from "commander";
+import { createClient, requireWorkspace } from "../client.js";
 import { loadConfig } from "../config.js";
-import { createClient } from "../client.js";
 import { getGlobalOptions } from "../globals.js";
 import { outputData, outputText } from "../output.js";
 
@@ -35,10 +35,7 @@ export function registerImportCommand(program: Command): void {
     .requiredOption("--file <path>", "export zip path")
     .requiredOption("--slug <slug>", "new workspace slug")
     .option("--name <name>", "new workspace name")
-    .action(async function (
-      this: Command,
-      opts: { file: string; slug: string; name?: string },
-    ) {
+    .action(async function (this: Command, opts: { file: string; slug: string; name?: string }) {
       const globals = getGlobalOptions(this);
       const { client } = await createClient(globals);
 
@@ -59,12 +56,11 @@ export function registerExportCommand(program: Command): void {
   program
     .command("export")
     .description("Export workspace data as zip")
-    .requiredOption("--workspace <slug>", "workspace slug")
     .option("--out <path>", "output zip path", "./export.zip")
-    .action(async function (this: Command, opts: { workspace: string; out: string }) {
+    .action(async function (this: Command, opts: { out: string }) {
       const globals = getGlobalOptions(this);
-      const { client } = await createClient(globals);
-      const ws = opts.workspace;
+      const { client, workspace } = await createClient(globals);
+      const ws = requireWorkspace(workspace);
 
       const job = await client.workspaces.export(ws);
       outputText(`Export started: ${job.export_id}`, globals);
@@ -73,10 +69,7 @@ export function registerExportCommand(program: Command): void {
       const response = await client.workspaces.getExport(ws, job.export_id);
 
       if (response.body) {
-        await pipeline(
-          Readable.fromWeb(response.body as never),
-          createWriteStream(opts.out),
-        );
+        await pipeline(Readable.fromWeb(response.body as never), createWriteStream(opts.out));
       } else {
         const buffer = Buffer.from(await response.arrayBuffer());
         await import("node:fs/promises").then((fs) => fs.writeFile(opts.out, buffer));
@@ -124,8 +117,7 @@ export function registerDoctorCommand(program: Command): void {
           }
         } catch (error) {
           checks.workspace_access = "error";
-          checks.workspace_error =
-            error instanceof Error ? error.message : String(error);
+          checks.workspace_error = error instanceof Error ? error.message : String(error);
         }
       }
 

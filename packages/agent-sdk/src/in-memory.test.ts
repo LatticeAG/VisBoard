@@ -5,10 +5,35 @@ import {
   AgentLeaseError,
   AgentModeError,
   AgentSession,
+  HandoffStateError,
   InMemoryAgentTransport,
 } from "./index.js";
+import type { BeliefTrace } from "./types.js";
 
 const boardId = "brd_launch";
+
+function sampleBelief(runId: string): BeliefTrace {
+  return {
+    schema_version: 1,
+    board_revision_id: null,
+    run_id: runId,
+    captured_at: "2026-08-14T04:00:00.000Z",
+    summary: "Implementation is ready for human review",
+    beliefs: [
+      {
+        id: "b1",
+        statement: "Workspace isolation holds",
+        evidence_refs: [],
+        block_ids: [],
+        source: "agent",
+      },
+    ],
+    assumptions: [],
+    overweighted: [],
+    ignored: [],
+    confidence: 0.8,
+  };
+}
 
 async function operatingSession(
   transport: InMemoryAgentTransport,
@@ -162,9 +187,13 @@ describe("InMemoryAgentTransport handoff checkpoints", () => {
       requested_decision: {
         kind: "release_approval",
         question: "May the agent prepare the release?",
-        choices: [{ id: "approve", label: "Approve" }, { id: "changes", label: "Request changes" }],
+        choices: [
+          { id: "approve", label: "Approve" },
+          { id: "changes", label: "Request changes" },
+        ],
         resume_allowed: true,
       },
+      belief_trace: sampleBelief(session.run.id),
     };
     const draft = await session.createHandoff(packet, {
       agent_workspace_id: workspace.id,
@@ -223,6 +252,7 @@ describe("InMemoryAgentTransport handoff checkpoints", () => {
           question: "Approve this patch?",
           choices: [{ id: "approve", label: "Approve" }],
         },
+        belief_trace: sampleBelief(session.run.id),
       },
       { agent_workspace_id: workspace.id },
     );
@@ -272,5 +302,26 @@ describe("InMemoryAgentTransport handoff checkpoints", () => {
     expect(updated.content).toContain("reviewed");
     const completedHandoff = await resumed.getHandoff(submitted.id);
     expect(completedHandoff.state).toBe("resumed");
+  });
+
+  it("refuses to submit a draft without a belief_trace", async () => {
+    const transport = new InMemoryAgentTransport();
+    const { session, workspace } = await operatingSession(transport);
+    const draft = await session.createHandoff(
+      {
+        goal: "Review without a theory",
+        requested_decision: {
+          kind: "code_review",
+          question: "Approve this patch?",
+          choices: [{ id: "approve", label: "Approve" }],
+        },
+      },
+      { agent_workspace_id: workspace.id },
+    );
+    await expect(session.submitHandoff(draft.id)).rejects.toMatchObject({
+      name: "HandoffStateError",
+      code: "handoff.belief_trace_required",
+    });
+    await expect(session.submitHandoff(draft.id)).rejects.toBeInstanceOf(HandoffStateError);
   });
 });

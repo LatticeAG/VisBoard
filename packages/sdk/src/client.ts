@@ -1,19 +1,16 @@
 import { HttpClient } from "./http.js";
 import type { RequestOptions } from "./http.js";
 import { AgentsResource } from "./resources/agents.js";
-import { AgentsMdResource, ContextResource } from "./resources/context.js";
+import { BoardsResource } from "./resources/boards.js";
 import { ChecklistsResource } from "./resources/checklists.js";
+import { AgentsMdResource, ContextResource } from "./resources/context.js";
 import { EventsResource } from "./resources/events.js";
 import { FilesResource } from "./resources/files.js";
+import { HandoffsResource } from "./resources/handoffs.js";
 import { NotesResource } from "./resources/notes.js";
 import { ProjectsResource } from "./resources/projects.js";
-import { BoardsResource } from "./resources/boards.js";
 import { TemplatesResource } from "./resources/templates.js";
-import {
-  BootstrapResource,
-  HealthResource,
-  WorkspacesResource,
-} from "./resources/workspaces.js";
+import { BootstrapResource, HealthResource, WorkspacesResource } from "./resources/workspaces.js";
 
 export interface VisBoardClientConfig {
   baseUrl: string;
@@ -36,6 +33,7 @@ export class VisBoardClient {
   readonly agentsMd: AgentsMdResource;
   readonly bootstrap: BootstrapResource;
   readonly health: HealthResource;
+  readonly handoffs: HandoffsResource;
 
   private readonly http: HttpClient;
 
@@ -54,6 +52,7 @@ export class VisBoardClient {
     this.agentsMd = new AgentsMdResource(this.http);
     this.bootstrap = new BootstrapResource(this.http);
     this.health = new HealthResource(this.http);
+    this.handoffs = new HandoffsResource(this.http);
   }
 
   setToken(token: string | undefined): void {

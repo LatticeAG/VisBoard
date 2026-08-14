@@ -2,38 +2,44 @@ import {
   AgentConflictError,
   AgentIsolationError,
   AgentLeaseError,
-  AgentModeError,
-  HandoffStateError,
-  InMemoryAgentTransport,
   type AgentMode,
+  AgentModeError,
   type AgentRunAccess,
+  type AgentTransport,
   type AgentWorkspaceProfile,
   type HandoffDecisionOutcome,
+  HandoffStateError,
+  InMemoryAgentTransport,
 } from "@visboard/agent-sdk";
-import { Hono, type Context } from "hono";
+import { type Context, Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
-import { assertWorkspaceAccess } from "../lib/helpers.js";
 import {
   badRequest,
   conflict,
   forbidden,
   notFound,
+  notImplemented,
   preconditionFailed,
 } from "../lib/errors.js";
+import { assertWorkspaceAccess } from "../lib/helpers.js";
 import { getBoard } from "../services/board.js";
 import { getWorkspaceById } from "../services/workspace.js";
 
 type JsonRecord = Record<string, unknown>;
 
-let transport = new InMemoryAgentTransport();
+let transport: AgentTransport = new InMemoryAgentTransport();
 
 /** Reference-runtime reset for isolated API tests and local development. */
 export function resetAgentWorkflowRuntimeForTests(): void {
   transport = new InMemoryAgentTransport();
 }
 
-export function getAgentWorkflowTransportForTests(): InMemoryAgentTransport {
+export function setAgentWorkflowTransport(next: AgentTransport): void {
+  transport = next;
+}
+
+export function getAgentWorkflowTransportForTests(): AgentTransport {
   return transport;
 }
 
@@ -82,10 +88,15 @@ function accessFrom(value: unknown): AgentRunAccess {
   };
 }
 
-function queryAccess(c: Context): AgentRunAccess {
+function queryAccess(c: Context, body?: JsonRecord): AgentRunAccess {
+  if (body && isRecord(body.access)) {
+    return accessFrom(body.access);
+  }
+  const runId = c.req.header("X-Visboard-Run-Id") ?? c.req.query("run_id");
+  const leaseId = c.req.header("X-Visboard-Lease-Id") ?? c.req.query("lease_id");
   return {
-    run_id: requiredString(c.req.query("run_id"), "run_id"),
-    lease_id: requiredString(c.req.query("lease_id"), "lease_id"),
+    run_id: requiredString(runId, "run_id"),
+    lease_id: requiredString(leaseId, "lease_id"),
   };
 }
 
@@ -137,10 +148,7 @@ async function requireV2Board(c: Context) {
   return { auth, boardId };
 }
 
-function assertAgentIdentity(
-  auth: { type: "user" | "agent"; id: string },
-  agentId: string,
-): void {
+function assertAgentIdentity(auth: { type: "user" | "agent"; id: string }, agentId: string): void {
   if (auth.type === "agent" && auth.id !== agentId) {
     throw forbidden("An agent credential can only start work for its own agent identity");
   }
@@ -168,6 +176,9 @@ async function runAgentOperation<T>(operation: () => Promise<T>): Promise<T> {
     }
     if (error instanceof AgentConflictError) {
       throw preconditionFailed(message);
+    }
+    if (error instanceof HandoffStateError && error.code === "handoff.belief_trace_required") {
+      throw badRequest("belief_trace is required to submit a handoff");
     }
     if (error instanceof AgentLeaseError || error instanceof HandoffStateError) {
       throw conflict(message);
@@ -245,15 +256,13 @@ agentWorkflowRoutes.post(
   },
 );
 
-agentWorkflowRoutes.get(
-  "/:board/agent-runs/:run",
-  requireScope("read", "admin"),
-  async (c) => {
-    const { boardId } = await requireV2Board(c);
-    const runId = requiredString(c.req.param("run"), "run");
-    return c.json(await runAgentOperation(() => transport.getRun({ board_id: boardId, run_id: runId })));
-  },
-);
+agentWorkflowRoutes.get("/:board/agent-runs/:run", requireScope("read", "admin"), async (c) => {
+  const { boardId } = await requireV2Board(c);
+  const runId = requiredString(c.req.param("run"), "run");
+  return c.json(
+    await runAgentOperation(() => transport.getRun({ board_id: boardId, run_id: runId })),
+  );
+});
 
 agentWorkflowRoutes.post(
   "/:board/agent-runs/:run/heartbeats",
@@ -261,7 +270,11 @@ agentWorkflowRoutes.post(
   async (c) => {
     const { boardId } = await requireV2Board(c);
     const body = readBody(await c.req.json());
-    return c.json(await runAgentOperation(() => transport.heartbeat({ board_id: boardId, access: accessFrom(body.access) })));
+    return c.json(
+      await runAgentOperation(() =>
+        transport.heartbeat({ board_id: boardId, access: accessFrom(body.access) }),
+      ),
+    );
   },
 );
 
@@ -295,7 +308,9 @@ function runFinishRoute(
       const body = readBody(await c.req.json());
       const access = accessFrom(body.access);
       if (operation === "cancelRun") {
-        return c.json(await runAgentOperation(() => transport.cancelRun({ board_id: boardId, access })));
+        return c.json(
+          await runAgentOperation(() => transport.cancelRun({ board_id: boardId, access })),
+        );
       }
       const summary = requiredString(body.summary, "summary");
       return c.json(
@@ -494,43 +509,71 @@ agentWorkflowRoutes.get("/:board/handoffs", requireScope("read", "admin"), async
   );
 });
 
-agentWorkflowRoutes.post(
-  "/:board/handoffs",
-  requireScope("write:notes", "admin"),
-  async (c) => {
-    const { boardId } = await requireV2Board(c);
-    const body = readBody(await c.req.json());
-    if (!isRecord(body.packet)) throw badRequest("packet is required");
-    return c.json(
-      await runAgentOperation(() =>
-        transport.createHandoff({
-          board_id: boardId,
-          access: accessFrom(body.access),
-          agent_workspace_id: optionalString(body.agent_workspace_id, "agent_workspace_id"),
-          revision_id: optionalString(body.revision_id, "revision_id"),
-          packet: body.packet as Parameters<typeof transport.createHandoff>[0]["packet"],
-        }),
-      ),
-      201,
-    );
-  },
-);
+agentWorkflowRoutes.post("/:board/handoffs", requireScope("write:notes", "admin"), async (c) => {
+  const { boardId } = await requireV2Board(c);
+  const body = readBody(await c.req.json());
+  if (!isRecord(body.packet)) throw badRequest("packet is required");
+  return c.json(
+    await runAgentOperation(() =>
+      transport.createHandoff({
+        board_id: boardId,
+        access: accessFrom(body.access),
+        agent_workspace_id: optionalString(body.agent_workspace_id, "agent_workspace_id"),
+        revision_id: optionalString(body.revision_id, "revision_id"),
+        packet: body.packet as Parameters<typeof transport.createHandoff>[0]["packet"],
+      }),
+    ),
+    201,
+  );
+});
 
 agentWorkflowRoutes.get(
-  "/:board/handoffs/:handoff",
+  "/:board/handoffs/:handoff/belief-trace",
   requireScope("read", "admin"),
   async (c) => {
     const { boardId } = await requireV2Board(c);
-    return c.json(
-      await runAgentOperation(() =>
-        transport.getHandoff({
-          board_id: boardId,
-          handoff_id: requiredString(c.req.param("handoff"), "handoff"),
-        }),
-      ),
-    );
+    const handoffId = requiredString(c.req.param("handoff"), "handoff");
+    try {
+      const handoff = await transport.getHandoff({
+        board_id: boardId,
+        handoff_id: handoffId,
+      });
+      if (!handoff.packet.belief_trace || !handoff.belief_trace_hash || !handoff.packet_hash) {
+        throw notFound(`Belief trace for handoff '${handoffId}' was not found`);
+      }
+      return c.json({
+        trace: handoff.packet.belief_trace,
+        belief_trace_hash: handoff.belief_trace_hash,
+        packet_hash: handoff.packet_hash,
+      });
+    } catch (error) {
+      if (error instanceof AgentIsolationError) {
+        throw notFound(`Belief trace for handoff '${handoffId}' was not found`);
+      }
+      throw error;
+    }
   },
 );
+
+agentWorkflowRoutes.post(
+  "/:board/agent-workspaces/:agent_workspace/terminal-sessions",
+  requireScope("write:files", "admin"),
+  async () => {
+    throw notImplemented("Agent terminal sessions are not implemented in this cycle");
+  },
+);
+
+agentWorkflowRoutes.get("/:board/handoffs/:handoff", requireScope("read", "admin"), async (c) => {
+  const { boardId } = await requireV2Board(c);
+  return c.json(
+    await runAgentOperation(() =>
+      transport.getHandoff({
+        board_id: boardId,
+        handoff_id: requiredString(c.req.param("handoff"), "handoff"),
+      }),
+    ),
+  );
+});
 
 agentWorkflowRoutes.post(
   "/:board/handoffs/:handoff/submit",
@@ -550,23 +593,19 @@ agentWorkflowRoutes.post(
   },
 );
 
-agentWorkflowRoutes.post(
-  "/:board/handoffs/:handoff/claim",
-  requireScope("admin"),
-  async (c) => {
-    const { auth, boardId } = await requireV2Board(c);
-    requireHumanReviewer(auth);
-    return c.json(
-      await runAgentOperation(() =>
-        transport.claimHandoff({
-          board_id: boardId,
-          handoff_id: requiredString(c.req.param("handoff"), "handoff"),
-          reviewer_id: auth.id,
-        }),
-      ),
-    );
-  },
-);
+agentWorkflowRoutes.post("/:board/handoffs/:handoff/claim", requireScope("admin"), async (c) => {
+  const { auth, boardId } = await requireV2Board(c);
+  requireHumanReviewer(auth);
+  return c.json(
+    await runAgentOperation(() =>
+      transport.claimHandoff({
+        board_id: boardId,
+        handoff_id: requiredString(c.req.param("handoff"), "handoff"),
+        reviewer_id: auth.id,
+      }),
+    ),
+  );
+});
 
 agentWorkflowRoutes.post(
   "/:board/handoffs/:handoff/decisions",

@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import type { Board } from '@visboard/sdk';
-import { AppHeader } from '@/components/app-header';
-import { InlineAlert } from '@/components/toast';
-import { getV2Client } from '@/lib/v2-client';
+import { AppHeader } from "@/components/app-header";
+import { InlineAlert } from "@/components/toast";
+import { getV2Client } from "@/lib/v2-client";
+import type { Board } from "@visboard/sdk";
+import { useEffect, useState } from "react";
 
 export default function V2BoardListPage({ params }: { params: Promise<{ workspace: string }> }) {
-  const [workspaceId, setWorkspaceId] = useState('');
+  const [workspaceId, setWorkspaceId] = useState("");
   const [boards, setBoards] = useState<Board[]>([]);
-  const [name, setName] = useState('');
+  const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,12 +25,13 @@ export default function V2BoardListPage({ params }: { params: Promise<{ workspac
     try {
       setBoards(await getV2Client().boards.list(workspaceId));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to load boards');
+      setError(cause instanceof Error ? cause.message : "Unable to load boards");
     } finally {
       setLoading(false);
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: load is recreated each render; workspaceId is the trigger
   useEffect(() => {
     void load();
   }, [workspaceId]);
@@ -46,10 +47,10 @@ export default function V2BoardListPage({ params }: { params: Promise<{ workspac
         { name: name.trim() },
         { idempotencyKey: crypto.randomUUID() },
       );
-      setName('');
+      setName("");
       window.location.assign(`/app/v2/${workspaceId}/boards/${board.id}`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to create board');
+      setError(cause instanceof Error ? cause.message : "Unable to create board");
     } finally {
       setCreating(false);
     }
@@ -57,19 +58,22 @@ export default function V2BoardListPage({ params }: { params: Promise<{ workspac
 
   return (
     <>
-      <AppHeader breadcrumb={[{ label: 'V3 boards' }, { label: workspaceId || 'workspace' }]} />
+      <AppHeader breadcrumb={[{ label: "V3 boards" }, { label: workspaceId || "workspace" }]} />
       <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mb-6 max-w-2xl">
           <h1 className="font-mono text-xl text-text">Boards</h1>
           <p className="mt-2 font-mono text-xs leading-5 text-muted">
-            Versioned collaboration surfaces for people and agents. Workspace ID: {workspaceId || 'loading'}.
+            Versioned collaboration surfaces for people and agents. Workspace ID:{" "}
+            {workspaceId || "loading"}.
           </p>
         </div>
 
         {error && <InlineAlert message={error} variant="error" className="mb-4" />}
 
         <form onSubmit={createBoard} className="mb-6 flex max-w-xl gap-2">
-          <label className="sr-only" htmlFor="board-name">Board name</label>
+          <label className="sr-only" htmlFor="board-name">
+            Board name
+          </label>
           <input
             id="board-name"
             value={name}
@@ -82,7 +86,7 @@ export default function V2BoardListPage({ params }: { params: Promise<{ workspac
             disabled={creating || !name.trim()}
             className="border border-accent bg-accent-dim px-4 py-2 font-mono text-xs text-text hover:bg-accent disabled:opacity-50"
           >
-            {creating ? 'Creating' : 'Create board'}
+            {creating ? "Creating" : "Create board"}
           </button>
         </form>
 
@@ -107,7 +111,9 @@ export default function V2BoardListPage({ params }: { params: Promise<{ workspac
                     <span className="font-mono text-sm text-text">{board.name}</span>
                     <span className="font-mono text-xs text-muted">{board.status}</span>
                   </div>
-                  <p className="mt-1 font-mono text-xs text-muted">{board.description || board.slug}</p>
+                  <p className="mt-1 font-mono text-xs text-muted">
+                    {board.description || board.slug}
+                  </p>
                 </a>
               </li>
             ))}

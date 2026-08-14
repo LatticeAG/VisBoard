@@ -1,24 +1,16 @@
 import { agents, projects } from "@visboard/db";
+import type { Database } from "@visboard/db";
 import { EventType, PREFIX, createId } from "@visboard/shared";
 import { and, eq, isNull } from "drizzle-orm";
-import type { Database } from "@visboard/db";
 import type { AuthPrincipal } from "../auth/middleware.js";
-import { forbidden, notFound } from "../lib/errors.js";
+import { generateAgentToken, hashToken, tokenPrefix } from "../auth/tokens.js";
 import { getEnv } from "../env.js";
-import {
-  generateAgentToken,
-  hashToken,
-  tokenPrefix,
-} from "../auth/tokens.js";
-import { getWorkspaceBySlug } from "./workspace.js";
+import { forbidden, notFound } from "../lib/errors.js";
 import { scheduleAgentsMdSync } from "./agents-md-sync.js";
 import { createEvent } from "./event.js";
+import { getWorkspaceBySlug } from "./workspace.js";
 
-export async function listAgents(
-  db: Database["db"],
-  workspaceSlug: string,
-  projectSlug?: string,
-) {
+export async function listAgents(db: Database["db"], workspaceSlug: string, projectSlug?: string) {
   const ws = await getWorkspaceBySlug(db, workspaceSlug);
   if (!ws) throw notFound(`Workspace '${workspaceSlug}' not found`);
 
@@ -31,10 +23,7 @@ export async function listAgents(
   if (projectSlug) {
     const { getProjectBySlug } = await import("./project.js");
     const { project } = await getProjectBySlug(db, workspaceSlug, projectSlug);
-    filtered = rows.filter(
-      (a) =>
-        a.projectIds.length === 0 || a.projectIds.includes(project.id),
-    );
+    filtered = rows.filter((a) => a.projectIds.length === 0 || a.projectIds.includes(project.id));
   }
 
   return filtered.map(formatAgent);
@@ -75,13 +64,14 @@ export async function createAgent(
       createdAt: now,
     })
     .returning();
+  if (!agent) throw new Error("Failed to create agent");
 
-  await createEventForAgentProjects(db, agent!, auth, EventType.AGENT_CREATED);
+  await createEventForAgentProjects(db, agent, auth, EventType.AGENT_CREATED);
 
-  for (const projectId of agent!.projectIds) {
+  for (const projectId of agent.projectIds) {
     scheduleAgentsMdSync(projectId);
   }
-  if (agent!.projectIds.length === 0) {
+  if (agent.projectIds.length === 0) {
     const projectRows = await db
       .select({ id: projects.id })
       .from(projects)
@@ -91,7 +81,7 @@ export async function createAgent(
     }
   }
 
-  return { ...formatAgent(agent!), token: rawToken };
+  return { ...formatAgent(agent), token: rawToken };
 }
 
 export async function updateAgent(
@@ -128,8 +118,9 @@ export async function updateAgent(
     })
     .where(eq(agents.id, agentId))
     .returning();
+  if (!updated) throw new Error("Failed to update agent");
 
-  return formatAgent(updated!);
+  return formatAgent(updated);
 }
 
 export async function revokeAgent(
@@ -161,14 +152,15 @@ export async function revokeAgent(
     .set({ status: "revoked", revokedAt: now })
     .where(eq(agents.id, agentId))
     .returning();
+  if (!updated) throw new Error("Failed to revoke agent");
 
-  await createEventForAgentProjects(db, updated!, auth, EventType.AGENT_REVOKED);
+  await createEventForAgentProjects(db, updated, auth, EventType.AGENT_REVOKED);
 
-  for (const projectId of updated!.projectIds) {
+  for (const projectId of updated.projectIds) {
     scheduleAgentsMdSync(projectId);
   }
 
-  return formatAgent(updated!);
+  return formatAgent(updated);
 }
 
 async function createEventForAgentProjects(

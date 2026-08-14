@@ -2,6 +2,7 @@
   "name": "@visboard/sdk",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -10,6 +11,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LatticeAG/VisBoard.git",
+    "directory": "packages/sdk"
   },
   "scripts": {
     "build": "tsc",

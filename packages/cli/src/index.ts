@@ -21,7 +21,7 @@ const program = new Command();
 
 program
   .name("visboard")
-  .description("VisBoard CLI — shared workspace for agents and humans")
+  .description("VisBoard CLI: shared workspace for agents and humans")
   .version("0.1.0");
 
 registerGlobals(program);

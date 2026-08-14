@@ -12,19 +12,10 @@ import { workspaceIdSchema } from "./workspace.js";
 
 export const templateIdSchema = z.string().regex(ID_PATTERNS.template);
 export const templateVersionIdSchema = z.string().regex(ID_PATTERNS.templateVersion);
-export const templateInstallationIdSchema = z
-  .string()
-  .regex(ID_PATTERNS.templateInstallation);
-export const templateBlockMappingIdSchema = z
-  .string()
-  .regex(ID_PATTERNS.templateBlockMapping);
+export const templateInstallationIdSchema = z.string().regex(ID_PATTERNS.templateInstallation);
+export const templateBlockMappingIdSchema = z.string().regex(ID_PATTERNS.templateBlockMapping);
 
-export const templateScopeSchema = z.enum([
-  "system",
-  "organization",
-  "team",
-  "private",
-]);
+export const templateScopeSchema = z.enum(["system", "organization", "team", "private"]);
 export const templatePublicationStateSchema = z.enum(["draft", "published", "retired"]);
 
 export const templateParameterSchema = z.object({
@@ -40,7 +31,11 @@ export const templateNodeSchema = z.object({
   key: z.string().regex(/^[a-z][a-z0-9_-]{0,127}$/),
   type: blockTypeSchema,
   schema_version: z.number().int().positive().default(1),
-  parent_key: z.string().regex(/^[a-z][a-z0-9_-]{0,127}$/).nullable().optional(),
+  parent_key: z
+    .string()
+    .regex(/^[a-z][a-z0-9_-]{0,127}$/)
+    .nullable()
+    .optional(),
   slot: z.string().max(128).nullable().optional(),
   rank: z.string().min(1).max(256).optional(),
   attributes: blockAttributesSchema.optional(),
@@ -102,10 +97,16 @@ export const templateBlockMappingSchema = z.object({
 export const createTemplateSchema = z.object({
   workspace_id: workspaceIdSchema.optional(),
   name: z.string().min(1).max(256),
-  slug: z.string().regex(/^[a-z0-9-]{3,80}$/).optional(),
+  slug: z
+    .string()
+    .regex(/^[a-z0-9-]{3,80}$/)
+    .optional(),
   description: z.string().max(20_000).optional(),
   scope: templateScopeSchema.optional(),
-  version: z.string().regex(/^\d+\.\d+\.\d+$/).default("1.0.0"),
+  version: z
+    .string()
+    .regex(/^\d+\.\d+\.\d+$/)
+    .default("1.0.0"),
   manifest: templateManifestSchema,
   published: z.boolean().default(false),
 });
@@ -154,11 +155,36 @@ export const BUILT_IN_TEMPLATES = [
     manifest: builtInManifest("A focused sprint planning workflow.", [
       { key: "outcome", type: "core.document", content: { body: "# Sprint outcome\n" } },
       { key: "board", type: "core.kanban", attributes: { title: "Sprint board" } },
-      { key: "backlog", type: "core.kanban_column", parent_key: "board", attributes: { state_key: "backlog", title: "Backlog" } },
-      { key: "ready", type: "core.kanban_column", parent_key: "board", attributes: { state_key: "ready", title: "Ready" } },
-      { key: "in-progress", type: "core.kanban_column", parent_key: "board", attributes: { state_key: "in_progress", title: "In progress" } },
-      { key: "review", type: "core.kanban_column", parent_key: "board", attributes: { state_key: "review", title: "Review" } },
-      { key: "done", type: "core.kanban_column", parent_key: "board", attributes: { state_key: "done", title: "Done" } },
+      {
+        key: "backlog",
+        type: "core.kanban_column",
+        parent_key: "board",
+        attributes: { state_key: "backlog", title: "Backlog" },
+      },
+      {
+        key: "ready",
+        type: "core.kanban_column",
+        parent_key: "board",
+        attributes: { state_key: "ready", title: "Ready" },
+      },
+      {
+        key: "in-progress",
+        type: "core.kanban_column",
+        parent_key: "board",
+        attributes: { state_key: "in_progress", title: "In progress" },
+      },
+      {
+        key: "review",
+        type: "core.kanban_column",
+        parent_key: "board",
+        attributes: { state_key: "review", title: "Review" },
+      },
+      {
+        key: "done",
+        type: "core.kanban_column",
+        parent_key: "board",
+        attributes: { state_key: "done", title: "Done" },
+      },
       { key: "milestones", type: "core.gantt", attributes: { title: "Milestones" } },
       { key: "decisions", type: "core.decision", content: { body: "# Decisions\n" } },
       { key: "agent-work", type: "core.agent_workspace", attributes: {} },
@@ -183,7 +209,12 @@ export const BUILT_IN_TEMPLATES = [
     description: "Review evidence, code anchor, risk matrix, and approval handoff.",
     manifest: builtInManifest("A reviewable pull request workflow.", [
       { key: "summary", type: "core.document", content: { body: "# Pull request review\n" } },
-      { key: "code", type: "core.code", attributes: { language: "typescript" }, content: { source: "" } },
+      {
+        key: "code",
+        type: "core.code",
+        attributes: { language: "typescript" },
+        content: { source: "" },
+      },
       { key: "checks", type: "core.checklist", attributes: { title: "Review checklist" } },
       { key: "risks", type: "core.decision", content: { body: "# Risks\n" } },
       { key: "handoff", type: "core.handoff", attributes: {} },
@@ -196,7 +227,11 @@ export const BUILT_IN_TEMPLATES = [
     manifest: builtInManifest("A provenance-aware research workflow.", [
       { key: "question", type: "core.document", content: { body: "# Research question\n" } },
       { key: "evidence", type: "core.evidence", content: { body: "# Evidence ledger\n" } },
-      { key: "hypotheses", type: "core.mermaid", content: { source: "graph TD\n  Question --> Evidence" } },
+      {
+        key: "hypotheses",
+        type: "core.mermaid",
+        content: { source: "graph TD\n  Question --> Evidence" },
+      },
       { key: "synthesis", type: "core.document", content: { body: "# Synthesis\n" } },
       { key: "decision", type: "core.decision", content: { body: "# Decision\n" } },
     ]),

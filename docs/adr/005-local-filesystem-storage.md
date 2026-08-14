@@ -26,6 +26,6 @@ Store uploaded files on the **local filesystem** under `VISBOARD_DATA_DIR`:
 
 ## Alternatives considered
 
-- **S3/MinIO** — adds operational complexity for OSS quick start
-- **Database BLOBs** — poor performance for larger files
-- **Vercel Blob** — platform-specific; excluded for OSS-first phase
+- **S3/MinIO**: adds operational complexity for OSS quick start
+- **Database BLOBs**: poor performance for larger files
+- **Vercel Blob**: platform-specific; excluded for OSS-first phase

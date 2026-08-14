@@ -10,19 +10,13 @@ export function reqParam(c: Context, name: string): string {
   return value;
 }
 
-export function assertWorkspaceAccess(
-  auth: AuthPrincipal,
-  workspaceId: string,
-): void {
+export function assertWorkspaceAccess(auth: AuthPrincipal, workspaceId: string): void {
   if (!auth.workspaceIds.includes(workspaceId)) {
     throw forbidden("You do not have access to this workspace");
   }
 }
 
-export function assertAgentProjectAccess(
-  auth: AuthPrincipal,
-  projectId: string,
-): void {
+export function assertAgentProjectAccess(auth: AuthPrincipal, projectId: string): void {
   if (auth.type !== "agent") return;
   if (auth.projectIds.length === 0) return;
   if (!auth.projectIds.includes(projectId)) {

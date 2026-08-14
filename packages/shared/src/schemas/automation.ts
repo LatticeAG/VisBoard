@@ -18,9 +18,7 @@ export const semanticEventSchema = z.object({
       id: z.string().min(1),
     })
     .optional(),
-  source: z
-    .enum(["human", "agent", "sync", "automation", "import", "system"])
-    .default("system"),
+  source: z.enum(["human", "agent", "sync", "automation", "import", "system"]).default("system"),
   causation_id: z.string().nullable().optional(),
   correlation_id: z.string().nullable().optional(),
   /** Incremented by restore/safe mode to fence stale external effects. */
@@ -31,9 +29,7 @@ export const semanticEventSchema = z.object({
 
 export const automationConditionSchema = z.object({
   /** A safe, dot-separated path rooted at event or payload. */
-  path: z
-    .string()
-    .regex(/^(?:event|payload)(?:\.[A-Za-z0-9_-]+)*$/),
+  path: z.string().regex(/^(?:event|payload)(?:\.[A-Za-z0-9_-]+)*$/),
   operator: z.enum(["equals", "not_equals", "exists", "in", "contains"]),
   value: z.unknown().optional(),
 });
@@ -62,7 +58,8 @@ export const automationActionSchema = z.object({
   type: automationActionTypeSchema,
   config: z.record(z.unknown()).default({}),
   depends_on: z.array(z.string().min(1)).default([]),
-  dependency_mode: z.enum(["after_success", "after_completion", "independent"])
+  dependency_mode: z
+    .enum(["after_success", "after_completion", "independent"])
     .default("after_success"),
   requires_approval: z.boolean().default(false),
   timeout_ms: z.number().int().min(1_000).max(300_000).default(30_000),

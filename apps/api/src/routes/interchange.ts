@@ -1,21 +1,21 @@
-import { blockTypeSchema, type InterchangeBlock } from "@visboard/shared";
-import { Hono, type Context } from "hono";
+import { type InterchangeBlock, blockTypeSchema } from "@visboard/shared";
+import { type Context, Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
-import { actorFromAuth, assertWorkspaceAccess } from "../lib/helpers.js";
 import { badRequest, notFound } from "../lib/errors.js";
+import { actorFromAuth, assertWorkspaceAccess } from "../lib/helpers.js";
+import {
+  type BoardStateForInterchange,
+  exportBoardJson,
+  exportBoardMarkdown,
+  importBoardInterchange,
+} from "../services/board-interchange.js";
 import {
   captureBoardRevision,
   createBoardBlock,
   getBoard,
   getBoardState,
 } from "../services/board.js";
-import {
-  exportBoardJson,
-  exportBoardMarkdown,
-  importBoardInterchange,
-  type BoardStateForInterchange,
-} from "../services/board-interchange.js";
 import { getWorkspaceById } from "../services/workspace.js";
 
 type JsonRecord = Record<string, unknown>;
@@ -64,41 +64,39 @@ async function exportCurrentBoard(
       ...block,
       id: String(block.id),
       type: String(block.type),
-      schema_version: typeof block.schema_version === "number"
-        ? block.schema_version
-        : undefined,
-      parent_id: typeof block.parent_block_id === "string"
-        ? block.parent_block_id
-        : null,
+      schema_version: typeof block.schema_version === "number" ? block.schema_version : undefined,
+      parent_id: typeof block.parent_block_id === "string" ? block.parent_block_id : null,
       attributes: isRecord(block.attributes) ? block.attributes : {},
       content: isRecord(block.content) ? block.content : {},
     })) as InterchangeBlock[],
     head_revision: state.head_revision as unknown as JsonRecord | null,
   };
-  const content = format === "json"
-    ? JSON.stringify(exportBoardJson(portableState), null, 2)
-    : exportBoardMarkdown(portableState);
+  const content =
+    format === "json"
+      ? JSON.stringify(exportBoardJson(portableState), null, 2)
+      : exportBoardMarkdown(portableState);
   return {
     format,
     content,
-    lossiness_report: format === "json"
-      ? { format, lossless: true, entries: [] }
-      : {
-          format,
-          lossless: false,
-          entries: [
-            {
-              code: "collaboration_state_omitted",
-              path: "document",
-              message: "Markdown does not preserve live collaboration state.",
-            },
-            {
-              code: "revision_history_omitted",
-              path: "revision",
-              message: "Markdown contains a selected checkpoint, not full history.",
-            },
-          ],
-        },
+    lossiness_report:
+      format === "json"
+        ? { format, lossless: true, entries: [] }
+        : {
+            format,
+            lossless: false,
+            entries: [
+              {
+                code: "collaboration_state_omitted",
+                path: "document",
+                message: "Markdown does not preserve live collaboration state.",
+              },
+              {
+                code: "revision_history_omitted",
+                path: "revision",
+                message: "Markdown contains a selected checkpoint, not full history.",
+              },
+            ],
+          },
   };
 }
 
@@ -168,7 +166,8 @@ interchangeRoutes.post("/:board/imports", requireScope("admin"), async (c) => {
   while (pending.length > 0) {
     let progressed = false;
     for (let index = pending.length - 1; index >= 0; index -= 1) {
-      const entry = pending[index]!;
+      const entry = pending[index];
+      if (!entry) continue;
       const block = entry.block;
       const rawBlock = block as JsonRecord;
       const type = blockTypeSchema.safeParse(block.type);
@@ -221,20 +220,21 @@ interchangeRoutes.post("/:board/imports", requireScope("admin"), async (c) => {
     }
   }
 
-  const revision = created.length > 0
-    ? await captureBoardRevision(db, boardId, {
-        trigger: "manual",
-        actor,
-        label: `Imported ${imported.format.toUpperCase()}`,
-        summary: `Imported ${created.length} typed block${created.length === 1 ? "" : "s"}`,
-        eventType: "board.imported",
-        payload: {
-          format: imported.format,
-          imported_blocks: created.length,
-          skipped_blocks: skipped.length,
-        },
-      })
-    : null;
+  const revision =
+    created.length > 0
+      ? await captureBoardRevision(db, boardId, {
+          trigger: "manual",
+          actor,
+          label: `Imported ${imported.format.toUpperCase()}`,
+          summary: `Imported ${created.length} typed block${created.length === 1 ? "" : "s"}`,
+          eventType: "board.imported",
+          payload: {
+            format: imported.format,
+            imported_blocks: created.length,
+            skipped_blocks: skipped.length,
+          },
+        })
+      : null;
 
   return c.json(
     {

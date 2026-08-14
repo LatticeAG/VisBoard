@@ -1,10 +1,5 @@
 import type { HttpClient } from "../http.js";
-import type {
-  Agent,
-  AgentWithToken,
-  CreateAgentInput,
-  UpdateAgentInput,
-} from "../types.js";
+import type { Agent, AgentWithToken, CreateAgentInput, UpdateAgentInput } from "../types.js";
 
 export class AgentsResource {
   constructor(private readonly http: HttpClient) {}
@@ -30,9 +25,8 @@ export class AgentsResource {
   }
 
   revoke(ws: string, agentId: string): Promise<Agent> {
-    return this.http.request<Agent>(
-      `/workspaces/${ws}/agents/${agentId}/revoke`,
-      { method: "POST" },
-    );
+    return this.http.request<Agent>(`/workspaces/${ws}/agents/${agentId}/revoke`, {
+      method: "POST",
+    });
   }
 }

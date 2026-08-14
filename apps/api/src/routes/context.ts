@@ -1,14 +1,10 @@
 import { Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
-import { assertWorkspaceAccess } from "../lib/helpers.js";
-import { getWorkspaceBySlug } from "../services/workspace.js";
-import {
-  getAgentsMd,
-  getContext,
-  syncAgentsMdWithDb,
-} from "../services/agents-md-sync.js";
+import { assertWorkspaceAccess, reqParam } from "../lib/helpers.js";
+import { getAgentsMd, getContext, syncAgentsMdWithDb } from "../services/agents-md-sync.js";
 import { getProjectBySlug } from "../services/project.js";
+import { getWorkspaceBySlug } from "../services/workspace.js";
 
 export const contextRoutes = new Hono();
 
@@ -16,8 +12,8 @@ contextRoutes.use("*", authMiddleware);
 
 contextRoutes.get("/agents.md", requireScope("read"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -31,8 +27,8 @@ contextRoutes.get("/agents.md", requireScope("read"), async (c) => {
 
 contextRoutes.post("/agents.md/sync", requireScope("read", "admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -47,11 +43,9 @@ contextRoutes.post("/agents.md/sync", requireScope("read", "admin"), async (c) =
 
 contextRoutes.get("/context", requireScope("read"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
-  const include = (c.req.query("include") ?? "headings") as
-    | "headings"
-    | "bodies";
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const include = (c.req.query("include") ?? "headings") as "headings" | "bodies";
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {

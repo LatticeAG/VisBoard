@@ -19,6 +19,8 @@ const ERROR_TYPES: Record<number, string> = {
   413: "https://visboard.dev/errors/payload-too-large",
   429: "https://visboard.dev/errors/rate-limited",
   500: "https://visboard.dev/errors/internal",
+  501: "https://visboard.dev/errors/not-implemented",
+  503: "https://visboard.dev/errors/unavailable",
 };
 
 export class ApiError extends Error {
@@ -48,11 +50,9 @@ export function problem(
 }
 
 export function jsonError(c: Context, err: ApiError) {
-  return c.json(
-    problem(err.status, err.title, err.detail, c.req.path),
-    err.status,
-    { "Content-Type": "application/problem+json" },
-  );
+  return c.json(problem(err.status, err.title, err.detail, c.req.path), err.status, {
+    "Content-Type": "application/problem+json",
+  });
 }
 
 export function notFound(detail: string): ApiError {
@@ -85,4 +85,12 @@ export function payloadTooLarge(detail: string): ApiError {
 
 export function rateLimited(detail = "Rate limit exceeded"): ApiError {
   return new ApiError(429, "Too Many Requests", detail);
+}
+
+export function serviceUnavailable(detail = "Database is not ready"): ApiError {
+  return new ApiError(503, "Service Unavailable", detail);
+}
+
+export function notImplemented(detail: string): ApiError {
+  return new ApiError(501, "Not Implemented", detail);
 }

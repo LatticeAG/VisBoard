@@ -57,11 +57,7 @@ export class ChecklistsResource {
     );
   }
 
-  create(
-    ws: string,
-    project: string,
-    input: CreateChecklistInput,
-  ): Promise<ChecklistWithItems> {
+  create(ws: string, project: string, input: CreateChecklistInput): Promise<ChecklistWithItems> {
     return this.http.request<ChecklistWithItems>(
       `/workspaces/${ws}/projects/${project}/checklists`,
       {
@@ -113,9 +109,7 @@ export class ChecklistsResource {
           body: input,
         },
       )
-      .then((response) =>
-        extractChecklistItem(response, checklistId, { text: input.text }),
-      );
+      .then((response) => extractChecklistItem(response, checklistId, { text: input.text }));
   }
 
   updateItem(

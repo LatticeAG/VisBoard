@@ -1,28 +1,28 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { AppHeader } from '@/components/app-header';
-import { Sidebar, type SidebarTab } from '@/components/sidebar';
-import { NoteEditor } from '@/components/note-editor';
-import { ChecklistView } from '@/components/checklist-view';
-import { FileList } from '@/components/file-list';
-import { ActivityStream } from '@/components/activity-stream';
-import { CreateNoteModal } from '@/components/create-note-modal';
-import { CreateChecklistModal } from '@/components/create-checklist-modal';
-import { AgentRegistry } from '@/components/agent-registry';
-import { ToastContainer, useToast, InlineAlert } from '@/components/toast';
-import { api } from '@/lib/api-client';
+import { ActivityStream } from "@/components/activity-stream";
+import { AgentRegistry } from "@/components/agent-registry";
+import { AppHeader } from "@/components/app-header";
+import { ChecklistView } from "@/components/checklist-view";
+import { CreateChecklistModal } from "@/components/create-checklist-modal";
+import { CreateNoteModal } from "@/components/create-note-modal";
+import { FileList } from "@/components/file-list";
+import { NoteEditor } from "@/components/note-editor";
+import { Sidebar, type SidebarTab } from "@/components/sidebar";
+import { InlineAlert, ToastContainer, useToast } from "@/components/toast";
+import { api } from "@/lib/api-client";
 import type {
-  Note,
-  ChecklistWithItems,
-  FileRecord,
   Agent,
-  CreateNoteInput,
+  ChecklistWithItems,
   CreateChecklistInput,
-} from '@visboard/sdk';
+  CreateNoteInput,
+  FileRecord,
+  Note,
+} from "@visboard/sdk";
+import { useParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
-type CenterView = 'note' | 'checklist' | 'files';
+type CenterView = "note" | "checklist" | "files";
 
 export default function ProjectPage() {
   const params = useParams();
@@ -31,8 +31,8 @@ export default function ProjectPage() {
 
   const { toasts, show, dismiss } = useToast();
 
-  const [activeTab, setActiveTab] = useState<SidebarTab>('notes');
-  const [centerView, setCenterView] = useState<CenterView>('note');
+  const [activeTab, setActiveTab] = useState<SidebarTab>("notes");
+  const [centerView, setCenterView] = useState<CenterView>("note");
   const [activityCollapsed, setActivityCollapsed] = useState(false);
   const [mock, setMock] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,7 +49,10 @@ export default function ProjectPage() {
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [selectedChecklist, setSelectedChecklist] = useState<ChecklistWithItems | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [uploading, setUploading] = useState(false);
   const [syncingAgentsMd, setSyncingAgentsMd] = useState(false);
 
@@ -109,8 +112,8 @@ export default function ProjectPage() {
     const note = notes.find((n) => n.id === id) ?? null;
     setSelectedNoteId(id);
     setSelectedNote(note);
-    setCenterView('note');
-    setActiveTab('notes');
+    setCenterView("note");
+    setActiveTab("notes");
     setSaveMessage(null);
   };
 
@@ -118,23 +121,24 @@ export default function ProjectPage() {
     const chk = checklists.find((c) => c.id === id) ?? null;
     setSelectedChecklistId(id);
     setSelectedChecklist(chk);
-    setCenterView('checklist');
-    setActiveTab('checklists');
+    setCenterView("checklist");
+    setActiveTab("checklists");
   };
 
   const handleTabChange = (tab: SidebarTab) => {
     setActiveTab(tab);
-    if (tab === 'notes') {
-      setCenterView('note');
-    } else if (tab === 'checklists') {
-      setCenterView('checklist');
+    if (tab === "notes") {
+      setCenterView("note");
+    } else if (tab === "checklists") {
+      setCenterView("checklist");
       if (!selectedChecklistId && checklists.length > 0) {
-        const first = checklists[0]!;
+        const first = checklists[0];
+        if (!first) return;
         setSelectedChecklistId(first.id);
         setSelectedChecklist(first);
       }
-    } else if (tab === 'files') {
-      setCenterView('files');
+    } else if (tab === "files") {
+      setCenterView("files");
     }
   };
 
@@ -157,14 +161,12 @@ export default function ProjectPage() {
 
     if (result.ok) {
       setSelectedNote(result.data);
-      setNotes((prev) =>
-        prev.map((n) => (n.id === result.data.id ? result.data : n)),
-      );
-      setSaveMessage({ type: 'success', text: 'Note saved' });
-      show('Note saved', 'success');
+      setNotes((prev) => prev.map((n) => (n.id === result.data.id ? result.data : n)));
+      setSaveMessage({ type: "success", text: "Note saved" });
+      show("Note saved", "success");
     } else {
-      setSaveMessage({ type: 'error', text: result.error });
-      show(result.error, 'error');
+      setSaveMessage({ type: "error", text: result.error });
+      show(result.error, "error");
     }
     setSaving(false);
   };
@@ -176,7 +178,7 @@ export default function ProjectPage() {
     }
     setNotes((prev) => [...prev, result.data]);
     handleSelectNote(result.data.id);
-    show('Note created', 'success');
+    show("Note created", "success");
     return { ok: true };
   };
 
@@ -187,7 +189,7 @@ export default function ProjectPage() {
     }
     setChecklists((prev) => [...prev, result.data]);
     handleSelectChecklist(result.data.id);
-    show('Checklist created', 'success');
+    show("Checklist created", "success");
     return { ok: true };
   };
 
@@ -197,14 +199,14 @@ export default function ProjectPage() {
     setUploading(false);
 
     if (!result.ok) {
-      show(result.error, 'error');
+      show(result.error, "error");
       return;
     }
 
     setFiles((prev) => [...prev, result.data]);
-    setActiveTab('files');
-    setCenterView('files');
-    show(`Uploaded ${file.name}`, 'success');
+    setActiveTab("files");
+    setCenterView("files");
+    show(`Uploaded ${file.name}`, "success");
   };
 
   const handleAddItem = async (checklistId: string, text: string) => {
@@ -225,21 +227,15 @@ export default function ProjectPage() {
       items: [...(c.items ?? []), result.data],
     });
 
-    setChecklists((prev) =>
-      prev.map((c) => (c.id === checklistId ? updateChecklist(c) : c)),
-    );
+    setChecklists((prev) => prev.map((c) => (c.id === checklistId ? updateChecklist(c) : c)));
     if (selectedChecklist?.id === checklistId) {
       setSelectedChecklist((prev) => (prev ? updateChecklist(prev) : null));
     }
-    show('Item added', 'success');
+    show("Item added", "success");
     return { ok: true };
   };
 
-  const handleToggleItem = async (
-    checklistId: string,
-    itemId: string,
-    done: boolean,
-  ) => {
+  const handleToggleItem = async (checklistId: string, itemId: string, done: boolean) => {
     const result = await api.checklists.updateItem(ws, project, checklistId, itemId, {
       done,
     });
@@ -249,9 +245,7 @@ export default function ProjectPage() {
           chk.id === checklistId
             ? {
                 ...chk,
-                items: chk.items?.map((item) =>
-                  item.id === itemId ? { ...item, done } : item,
-                ),
+                items: chk.items?.map((item) => (item.id === itemId ? { ...item, done } : item)),
               }
             : chk,
         ),
@@ -261,15 +255,13 @@ export default function ProjectPage() {
           prev
             ? {
                 ...prev,
-                items: prev.items?.map((item) =>
-                  item.id === itemId ? { ...item, done } : item,
-                ),
+                items: prev.items?.map((item) => (item.id === itemId ? { ...item, done } : item)),
               }
             : null,
         );
       }
     } else {
-      show(result.error, 'error');
+      show(result.error, "error");
     }
   };
 
@@ -279,25 +271,20 @@ export default function ProjectPage() {
     setSyncingAgentsMd(false);
 
     if (result.ok) {
-      show('AGENTS.md synced', 'success');
+      show("AGENTS.md synced", "success");
       await loadData();
     } else {
-      show(result.error, 'error');
+      show(result.error, "error");
     }
   };
 
   return (
     <>
-      <AppHeader
-        breadcrumb={[
-          { label: ws, href: `/app/${ws}` },
-          { label: project },
-        ]}
-      />
+      <AppHeader breadcrumb={[{ label: ws, href: `/app/${ws}` }, { label: project }]} />
 
       {mock && (
         <InlineAlert
-          message="Demo mode — add ?demo=1 to explore with mock data"
+          message="Demo mode: add ?demo=1 to explore with mock data"
           variant="info"
           className="border-x-0 border-t-0"
         />
@@ -316,12 +303,9 @@ export default function ProjectPage() {
           disabled={syncingAgentsMd}
           className="border border-border px-3 py-1 font-mono text-xs text-muted hover:border-accent hover:text-text disabled:opacity-50"
         >
-          {syncingAgentsMd ? 'Syncing…' : 'Sync AGENTS.md'}
+          {syncingAgentsMd ? "Syncing…" : "Sync AGENTS.md"}
         </button>
-        <a
-          href={`/app/${ws}`}
-          className="ml-auto font-mono text-xs text-accent hover:underline"
-        >
+        <a href={`/app/${ws}`} className="ml-auto font-mono text-xs text-accent hover:underline">
           View all agents in workspace →
         </a>
       </div>
@@ -344,7 +328,7 @@ export default function ProjectPage() {
         />
 
         <div className="flex flex-1 flex-col overflow-hidden">
-          {centerView === 'note' && (
+          {centerView === "note" && (
             <NoteEditor
               note={selectedNote}
               onSave={handleSaveNote}
@@ -352,16 +336,14 @@ export default function ProjectPage() {
               saveMessage={saveMessage}
             />
           )}
-          {centerView === 'checklist' && (
+          {centerView === "checklist" && (
             <ChecklistView
               checklist={selectedChecklist}
               onToggleItem={handleToggleItem}
               onAddItem={handleAddItem}
             />
           )}
-          {centerView === 'files' && (
-            <FileList files={files} ws={ws} project={project} />
-          )}
+          {centerView === "files" && <FileList files={files} ws={ws} project={project} />}
         </div>
 
         <ActivityStream

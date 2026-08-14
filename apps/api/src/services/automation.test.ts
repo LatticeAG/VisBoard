@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import {
-  AutomationEngine,
-  createSignedWebhookExecutor,
-} from "./automation.js";
+import { AutomationEngine, createSignedWebhookExecutor } from "./automation.js";
 
 const event = {
   id: "evt_1",
@@ -63,15 +60,14 @@ describe("AutomationEngine", () => {
       name: "Deploy gate",
       enabled: true,
       trigger: { event_types: [event.type] },
-      actions: [
-        { id: "deploy", type: "webhook", requires_approval: true },
-      ],
+      actions: [{ id: "deploy", type: "webhook", requires_approval: true }],
     });
     const [pending] = await engine.processEvent(event);
     expect(pending?.state).toBe("awaiting_approval");
     expect(executor).not.toHaveBeenCalled();
 
-    const approved = await engine.approveAction(pending!.id, "deploy", event);
+    if (!pending) throw new Error("expected pending automation run");
+    const approved = await engine.approveAction(pending.id, "deploy", event);
     expect(approved?.state).toBe("succeeded");
     expect(executor).toHaveBeenCalledTimes(1);
   });
@@ -140,7 +136,12 @@ describe("signed webhook action", () => {
         name: "Hook",
         version: 1,
         enabled: true,
-        trigger: { event_types: [event.type], conditions: [], allow_self_trigger: false, maximum_causation_depth: 4 },
+        trigger: {
+          event_types: [event.type],
+          conditions: [],
+          allow_self_trigger: false,
+          maximum_causation_depth: 4,
+        },
         idempotency_key_template: "event.id",
         cooldown_ms: 0,
         actions: [],
@@ -194,7 +195,12 @@ describe("signed webhook action", () => {
           name: "Hook",
           version: 1,
           enabled: true,
-          trigger: { event_types: [event.type], conditions: [], allow_self_trigger: false, maximum_causation_depth: 4 },
+          trigger: {
+            event_types: [event.type],
+            conditions: [],
+            allow_self_trigger: false,
+            maximum_causation_depth: 4,
+          },
           idempotency_key_template: "event.id",
           cooldown_ms: 0,
           actions: [],

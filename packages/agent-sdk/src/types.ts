@@ -6,24 +6,11 @@
 
 export type AgentMode = "observe" | "propose" | "contribute" | "operate";
 
-export type AgentWorkspaceProfile =
-  | "external"
-  | "container"
-  | "git_worktree"
-  | "remote_runner";
+export type AgentWorkspaceProfile = "external" | "container" | "git_worktree" | "remote_runner";
 
-export type AgentWorkspaceState =
-  | "provisioning"
-  | "ready"
-  | "suspended"
-  | "destroyed";
+export type AgentWorkspaceState = "provisioning" | "ready" | "suspended" | "destroyed";
 
-export type AgentRunState =
-  | "running"
-  | "waiting_for_human"
-  | "completed"
-  | "failed"
-  | "cancelled";
+export type AgentRunState = "running" | "waiting_for_human" | "completed" | "failed" | "cancelled";
 
 export type AgentLeaseState = "active" | "revoked" | "expired";
 
@@ -209,6 +196,28 @@ export interface HandoffNextAction {
   external_effect?: boolean;
 }
 
+export interface BeliefEntry {
+  id: string;
+  statement: string;
+  weight?: number;
+  evidence_refs: string[];
+  block_ids: string[];
+  source: "agent" | "human" | "retrieved" | "inferred";
+}
+
+export interface BeliefTrace {
+  schema_version: 1;
+  board_revision_id: string | null;
+  run_id: string;
+  captured_at: string;
+  summary: string;
+  beliefs: BeliefEntry[];
+  assumptions: BeliefEntry[];
+  overweighted: BeliefEntry[];
+  ignored: BeliefEntry[];
+  confidence: number;
+}
+
 /** The mutable input used while a handoff is still a draft. */
 export interface HandoffPacketInput {
   goal: string;
@@ -222,26 +231,30 @@ export interface HandoffPacketInput {
   source_revision_id?: string | null;
   target_branch?: string | null;
   rollback_plan?: string | null;
+  belief_trace?: BeliefTrace;
 }
 
 /** A packet as seen after submit: snapshot and checksum anchors are immutable. */
-export interface HandoffPacket extends Required<
-  Pick<
-    HandoffPacketInput,
-    | "goal"
-    | "requested_decision"
-    | "completed_work"
-    | "excluded_work"
-    | "change_summary"
-    | "evidence"
-    | "risks"
-    | "proposed_next_actions"
-  >
-> {
+export interface HandoffPacket
+  extends Required<
+    Pick<
+      HandoffPacketInput,
+      | "goal"
+      | "requested_decision"
+      | "completed_work"
+      | "excluded_work"
+      | "change_summary"
+      | "evidence"
+      | "risks"
+      | "proposed_next_actions"
+    >
+  > {
   source_revision_id: string | null;
   target_branch: string | null;
   rollback_plan: string | null;
   workspace_snapshot: AgentWorkspaceSnapshot | null;
+  /** Required after submit. Drafts may omit it. */
+  belief_trace?: BeliefTrace;
 }
 
 export interface HandoffDecision {
@@ -264,6 +277,7 @@ export interface Handoff {
   state: HandoffState;
   packet: HandoffPacket;
   packet_hash: string | null;
+  belief_trace_hash: string | null;
   claimed_by_id: string | null;
   submitted_at: string | null;
   decided_at: string | null;

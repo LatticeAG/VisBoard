@@ -1,3 +1,9 @@
+import {
+  type Database,
+  integrationConnections,
+  syncConflicts as syncConflictsTable,
+  syncLinks as syncLinksTable,
+} from "@visboard/db";
 import { createId } from "@visboard/shared";
 import type {
   CreateIntegrationConnection,
@@ -9,15 +15,10 @@ import type {
   SyncConflict,
   SyncLink,
 } from "@visboard/shared";
-import {
-  integrationConnectionSchema,
-  syncLinkSchema,
-} from "@visboard/shared";
-import {
-  getSyncAdapter,
-  type HeaderBag,
-  type ProviderOutboundMutation,
-} from "./sync-adapters.js";
+import { integrationConnectionSchema, syncLinkSchema } from "@visboard/shared";
+import { eq } from "drizzle-orm";
+import { decryptSecret, encryptSecret } from "../lib/secrets.js";
+import { type HeaderBag, type ProviderOutboundMutation, getSyncAdapter } from "./sync-adapters.js";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -173,11 +174,7 @@ export interface SyncResourceGateway {
   /** Reads the latest local projection for one linked resource. */
   readLocal(link: SyncLink): Promise<JsonRecord>;
   /** Applies only validated external fields through the board command boundary. */
-  applyInbound(
-    link: SyncLink,
-    patch: JsonRecord,
-    change: NormalizedExternalChange,
-  ): Promise<void>;
+  applyInbound(link: SyncLink, patch: JsonRecord, change: NormalizedExternalChange): Promise<void>;
   /** Optional hook for durable semantic events/audit/outbox integration. */
   onApplied?(link: SyncLink, change: NormalizedExternalChange, patch: JsonRecord): Promise<void>;
   onConflict?(link: SyncLink, conflict: SyncConflict): Promise<void>;
@@ -189,6 +186,8 @@ export interface SyncEngineOptions {
   gateway: SyncResourceGateway;
   resolveSecret?: (connection: IntegrationConnection) => Promise<string | undefined>;
   now?: () => Date;
+  db?: Database["db"];
+  secretsKey?: Buffer;
 }
 
 export interface WebhookIngestResult {
@@ -211,9 +210,7 @@ export interface OutboundDeliveryResult {
   baseline?: JsonRecord;
 }
 
-export type OutboundExecutor = (
-  delivery: OutboundDelivery,
-) => Promise<OutboundDeliveryResult>;
+export type OutboundExecutor = (delivery: OutboundDelivery) => Promise<OutboundDeliveryResult>;
 
 /**
  * A small in-process reference store. Production can replace it with tables
@@ -227,21 +224,29 @@ export class SyncEngine {
   private readonly inbox = new Set<string>();
   private readonly outboundDeliveries = new Set<string>();
   private readonly linkTails = new Map<string, Promise<void>>();
+  private readonly secrets = new Map<string, string>();
   private readonly now: () => Date;
+  private persistChain: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: SyncEngineOptions) {
     this.now = options.now ?? (() => new Date());
   }
 
-  createConnection(input: CreateIntegrationConnection): IntegrationConnection {
+  async flush(): Promise<void> {
+    await this.persistChain;
+  }
+
+  createConnection(input: CreateIntegrationConnection, secret?: string): IntegrationConnection {
     const now = this.now().toISOString();
     const connection = integrationConnectionSchema.parse({
       ...input,
-      id: input.id ?? createId("conn"),
+      id: input.id ?? createId("icon"),
       created_at: now,
       updated_at: now,
     });
     this.connections.set(connection.id, connection);
+    if (secret) this.secrets.set(connection.id, secret);
+    this.enqueuePersist(() => this.saveConnection(connection));
     return clone(connection);
   }
 
@@ -262,6 +267,7 @@ export class SyncEngine {
     if (!current) return null;
     const updated = { ...current, status, updated_at: this.now().toISOString() };
     this.connections.set(id, updated);
+    this.enqueuePersist(() => this.saveConnection(updated));
     return clone(updated);
   }
 
@@ -271,12 +277,13 @@ export class SyncEngine {
     const now = this.now().toISOString();
     const link = syncLinkSchema.parse({
       ...input,
-      id: input.id ?? createId("sync"),
+      id: input.id ?? createId("slink"),
       version: 0,
       created_at: now,
       updated_at: now,
     });
     this.links.set(link.id, link);
+    this.enqueuePersist(() => this.saveLink(link));
     return clone(link);
   }
 
@@ -325,7 +332,10 @@ export class SyncEngine {
         version: link.version + 1,
         updated_at: this.now().toISOString(),
       });
+      const next = this.links.get(link.id);
+      if (next) this.enqueuePersist(() => this.saveLink(next));
     }
+    this.enqueuePersist(() => this.saveConflict(updated));
     return clone(updated);
   }
 
@@ -336,14 +346,28 @@ export class SyncEngine {
   ): Promise<WebhookIngestResult> {
     const connection = this.connections.get(connectionId);
     if (!connection) {
-      return { accepted: false, duplicate: false, applied: 0, conflicts: [], ignored: 0, reason: "Connection not found" };
+      return {
+        accepted: false,
+        duplicate: false,
+        applied: 0,
+        conflicts: [],
+        ignored: 0,
+        reason: "Connection not found",
+      };
     }
     if (connection.status !== "active") {
-      return { accepted: false, duplicate: false, applied: 0, conflicts: [], ignored: 0, reason: "Connection is not active" };
+      return {
+        accepted: false,
+        duplicate: false,
+        applied: 0,
+        conflicts: [],
+        ignored: 0,
+        reason: "Connection is not active",
+      };
     }
 
     const adapter = getSyncAdapter(connection.provider);
-    const secret = await this.options.resolveSecret?.(connection);
+    const secret = await this.resolveConnectionSecret(connection);
     const input = { headers, rawBody, secret, receivedAt: this.now() };
     const verification = adapter.verifyWebhook(input);
     if (!verification.valid) {
@@ -412,9 +436,14 @@ export class SyncEngine {
     return this.withLinkLock(linkId, async () => {
       const link = this.links.get(linkId);
       if (!link) return { delivered: false, duplicate: false, reason: "Sync link not found" };
-      if (link.state !== "active") return { delivered: false, duplicate: false, reason: "Sync link is not active" };
+      if (link.state !== "active")
+        return { delivered: false, duplicate: false, reason: "Sync link is not active" };
       if (link.direction !== "outbound" && link.direction !== "bidirectional") {
-        return { delivered: false, duplicate: false, reason: "Sync link does not allow outbound updates" };
+        return {
+          delivered: false,
+          duplicate: false,
+          reason: "Sync link does not allow outbound updates",
+        };
       }
       const connection = this.connections.get(link.connection_id);
       if (!connection || connection.status !== "active") {
@@ -427,7 +456,11 @@ export class SyncEngine {
         effectGeneration !== undefined &&
         expectedEffectGeneration !== effectGeneration
       ) {
-        return { delivered: false, duplicate: false, reason: "Board effect generation has changed" };
+        return {
+          delivered: false,
+          duplicate: false,
+          reason: "Board effect generation has changed",
+        };
       }
 
       const idempotencyKey = `${link.id}:${link.version}:${stableStringify(local)}`;
@@ -449,7 +482,11 @@ export class SyncEngine {
         currentGeneration !== undefined &&
         currentGeneration !== expectedEffectGeneration
       ) {
-        return { delivered: false, duplicate: false, reason: "Board effect generation changed during delivery" };
+        return {
+          delivered: false,
+          duplicate: false,
+          reason: "Board effect generation changed during delivery",
+        };
       }
 
       this.outboundDeliveries.add(idempotencyKey);
@@ -461,6 +498,7 @@ export class SyncEngine {
         updated_at: this.now().toISOString(),
       };
       this.links.set(link.id, updated);
+      this.enqueuePersist(() => this.saveLink(updated));
       return { delivered: true, duplicate: false };
     });
   }
@@ -485,7 +523,7 @@ export class SyncEngine {
     if (merge.conflicts.length > 0) {
       const created = merge.conflicts.map((candidate) => {
         const conflict: SyncConflict = {
-          id: createId("sconf"),
+          id: createId("scfl"),
           link_id: link.id,
           field: candidate.field,
           baseline: candidate.baseline,
@@ -496,6 +534,7 @@ export class SyncEngine {
           resolved_at: null,
         };
         this.conflicts.set(conflict.id, conflict);
+        this.enqueuePersist(() => this.saveConflict(conflict));
         return conflict;
       });
       const conflicted: SyncLink = {
@@ -504,6 +543,7 @@ export class SyncEngine {
         updated_at: this.now().toISOString(),
       };
       this.links.set(link.id, conflicted);
+      this.enqueuePersist(() => this.saveLink(conflicted));
       for (const conflict of created) {
         await this.options.gateway.onConflict?.(clone(conflicted), clone(conflict));
       }
@@ -523,6 +563,7 @@ export class SyncEngine {
       updated_at: this.now().toISOString(),
     };
     this.links.set(link.id, updated);
+    this.enqueuePersist(() => this.saveLink(updated));
     return {
       applied: Object.keys(merge.patch).length > 0 ? 1 : 0,
       ignored: merge.ignoredFields.length,
@@ -548,5 +589,204 @@ export class SyncEngine {
         this.linkTails.delete(linkId);
       }
     }
+  }
+
+  async hydrate(): Promise<void> {
+    const db = this.options.db;
+    if (!db) return;
+    const connectionRows = await db.select().from(integrationConnections);
+    for (const row of connectionRows) {
+      const definition = isRecord(row.definition) ? row.definition : {};
+      const parsed = integrationConnectionSchema.safeParse({
+        ...definition,
+        id: row.id,
+        provider: row.provider,
+        workspace_id: row.workspaceId,
+        status: row.status,
+        created_at: row.createdAt.toISOString(),
+        updated_at: row.updatedAt.toISOString(),
+      });
+      if (parsed.success) this.connections.set(parsed.data.id, parsed.data);
+    }
+    const linkRows = await db.select().from(syncLinksTable);
+    for (const row of linkRows) {
+      const details = isRecord(row.details) ? row.details : {};
+      const fieldMap = Array.isArray(row.fieldMap)
+        ? row.fieldMap
+        : isRecord(row.fieldMap) && Array.isArray(row.fieldMap.field_mappings)
+          ? row.fieldMap.field_mappings
+          : details.field_mappings;
+      const parsed = syncLinkSchema.safeParse({
+        id: row.id,
+        connection_id: row.connectionId,
+        board_id: row.boardId,
+        resource_id: row.localResourceId,
+        external_id: row.externalId,
+        external_kind: details.external_kind,
+        direction: row.direction,
+        field_mappings: fieldMap,
+        baseline: details.baseline ?? {},
+        remote_version: details.remote_version ?? null,
+        state: row.state,
+        version: row.lockVersion,
+        created_at: typeof details.created_at === "string" ? details.created_at : undefined,
+        updated_at: typeof details.updated_at === "string" ? details.updated_at : undefined,
+      });
+      if (parsed.success) this.links.set(parsed.data.id, parsed.data);
+    }
+    const conflictRows = await db.select().from(syncConflictsTable);
+    for (const row of conflictRows) {
+      const payload = isRecord(row.payload) ? row.payload : {};
+      this.conflicts.set(row.id, {
+        id: row.id,
+        link_id: row.linkId,
+        field: typeof payload.field === "string" ? payload.field : "",
+        baseline: payload.baseline,
+        local: payload.local,
+        remote: payload.remote,
+        state: row.state as SyncConflict["state"],
+        created_at: row.createdAt.toISOString(),
+        resolved_at: typeof payload.resolved_at === "string" ? payload.resolved_at : null,
+      });
+    }
+  }
+
+  private enqueuePersist(work: () => Promise<void>): void {
+    if (!this.options.db) return;
+    this.persistChain = this.persistChain.then(work).catch((err) => {
+      console.error("sync persist failed", err);
+    });
+  }
+
+  private async resolveConnectionSecret(
+    connection: IntegrationConnection,
+  ): Promise<string | undefined> {
+    if (this.options.resolveSecret) {
+      const fromOpt = await this.options.resolveSecret(connection);
+      if (fromOpt) return fromOpt;
+    }
+    const cached = this.secrets.get(connection.id);
+    if (cached) return cached;
+    const db = this.options.db;
+    const key = this.options.secretsKey;
+    if (!db || !key) return undefined;
+    const [row] = await db
+      .select()
+      .from(integrationConnections)
+      .where(eq(integrationConnections.id, connection.id))
+      .limit(1);
+    if (!row?.secretCiphertext || !row.secretIv || !row.secretTag) return undefined;
+    return decryptSecret(
+      { ciphertext: row.secretCiphertext, iv: row.secretIv, tag: row.secretTag },
+      key,
+    );
+  }
+
+  private async saveConnection(connection: IntegrationConnection): Promise<void> {
+    const db = this.options.db;
+    if (!db) return;
+    const secret = this.secrets.get(connection.id);
+    const definition: JsonRecord = {
+      display_name: connection.display_name,
+      organization_id: connection.organization_id ?? null,
+      capabilities: connection.capabilities,
+      secret_reference: connection.secret_reference ?? null,
+    };
+    const encrypted =
+      secret && this.options.secretsKey ? encryptSecret(secret, this.options.secretsKey) : null;
+    await db
+      .insert(integrationConnections)
+      .values({
+        id: connection.id,
+        workspaceId: connection.workspace_id ?? "",
+        provider: connection.provider,
+        status: connection.status,
+        secretCiphertext: encrypted?.ciphertext ?? "",
+        secretIv: encrypted?.iv ?? "",
+        secretTag: encrypted?.tag ?? "",
+        definition,
+        createdAt: new Date(connection.created_at ?? Date.now()),
+        updatedAt: new Date(connection.updated_at ?? Date.now()),
+      })
+      .onConflictDoUpdate({
+        target: integrationConnections.id,
+        set: {
+          status: connection.status,
+          definition,
+          updatedAt: new Date(connection.updated_at ?? Date.now()),
+          ...(encrypted
+            ? {
+                secretCiphertext: encrypted.ciphertext,
+                secretIv: encrypted.iv,
+                secretTag: encrypted.tag,
+              }
+            : {}),
+        },
+      });
+  }
+
+  private async saveLink(link: SyncLink): Promise<void> {
+    const db = this.options.db;
+    if (!db) return;
+    const fieldMap = { field_mappings: link.field_mappings } as JsonRecord;
+    const details: JsonRecord = {
+      baseline: link.baseline,
+      field_mappings: link.field_mappings,
+      remote_version: link.remote_version ?? null,
+      external_kind: link.external_kind,
+      created_at: link.created_at,
+      updated_at: link.updated_at,
+    };
+    await db
+      .insert(syncLinksTable)
+      .values({
+        id: link.id,
+        connectionId: link.connection_id,
+        boardId: link.board_id,
+        localResourceId: link.resource_id,
+        externalId: link.external_id,
+        direction: link.direction,
+        fieldMap,
+        state: link.state,
+        lockVersion: link.version,
+        details,
+      })
+      .onConflictDoUpdate({
+        target: syncLinksTable.id,
+        set: {
+          localResourceId: link.resource_id,
+          externalId: link.external_id,
+          direction: link.direction,
+          fieldMap,
+          state: link.state,
+          lockVersion: link.version,
+          details,
+        },
+      });
+  }
+
+  private async saveConflict(conflict: SyncConflict): Promise<void> {
+    const db = this.options.db;
+    if (!db) return;
+    const payload: JsonRecord = {
+      field: conflict.field,
+      baseline: conflict.baseline as unknown,
+      local: conflict.local as unknown,
+      remote: conflict.remote as unknown,
+      resolved_at: conflict.resolved_at ?? null,
+    };
+    await db
+      .insert(syncConflictsTable)
+      .values({
+        id: conflict.id,
+        linkId: conflict.link_id,
+        payload,
+        state: conflict.state,
+        createdAt: new Date(conflict.created_at),
+      })
+      .onConflictDoUpdate({
+        target: syncConflictsTable.id,
+        set: { payload, state: conflict.state },
+      });
   }
 }

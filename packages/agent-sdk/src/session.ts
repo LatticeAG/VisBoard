@@ -1,7 +1,4 @@
-import {
-  AgentLeaseError,
-  AgentModeError,
-} from "./errors.js";
+import { AgentLeaseError, AgentModeError, HandoffStateError } from "./errors.js";
 import type {
   AgentContext,
   AgentFile,
@@ -115,9 +112,7 @@ export class AgentSession {
     return this.runWithLease.lease;
   }
 
-  async getContext(
-    input: Omit<GetAgentContextInput, "board_id">,
-  ): Promise<AgentContext> {
+  async getContext(input: Omit<GetAgentContextInput, "board_id">): Promise<AgentContext> {
     return this.options.transport.getContext({
       ...input,
       board_id: this.boardId,
@@ -176,11 +171,7 @@ export class AgentSession {
     });
   }
 
-  async deleteFile(
-    agentWorkspaceId: string,
-    path: string,
-    expectedEtag: string,
-  ): Promise<void> {
+  async deleteFile(agentWorkspaceId: string, path: string, expectedEtag: string): Promise<void> {
     this.requireOperate("delete_file");
     await this.options.transport.deleteFile({
       board_id: this.boardId,
@@ -283,6 +274,13 @@ export class AgentSession {
 
   async submitHandoff(handoffId: string): Promise<Handoff> {
     this.requireMutable("submit_handoff");
+    const draft = await this.getHandoff(handoffId);
+    if (!draft.packet.belief_trace) {
+      throw new HandoffStateError(
+        "belief_trace is required to submit a handoff",
+        "handoff.belief_trace_required",
+      );
+    }
     const handoff = await this.options.transport.submitHandoff({
       board_id: this.boardId,
       access: this.access(),
@@ -323,13 +321,19 @@ export class AgentSession {
 
     while (true) {
       if (options.signal?.aborted) {
-        throw new AgentLeaseError("Waiting for handoff decision was aborted", "handoff.wait_aborted");
+        throw new AgentLeaseError(
+          "Waiting for handoff decision was aborted",
+          "handoff.wait_aborted",
+        );
       }
 
       const handoff = await this.getHandoff(handoffId);
       if (FINAL_HANDOFF_STATES.has(handoff.state)) return handoff;
       if (Date.now() >= deadline) {
-        throw new AgentLeaseError("Timed out waiting for a handoff decision", "handoff.wait_timed_out");
+        throw new AgentLeaseError(
+          "Timed out waiting for a handoff decision",
+          "handoff.wait_timed_out",
+        );
       }
       await wait(pollInterval, options.signal);
     }
@@ -414,7 +418,9 @@ function wait(durationMs: number, signal?: AbortSignal): Promise<void> {
       "abort",
       () => {
         clearTimeout(timer);
-        reject(new AgentLeaseError("Waiting for handoff decision was aborted", "handoff.wait_aborted"));
+        reject(
+          new AgentLeaseError("Waiting for handoff decision was aborted", "handoff.wait_aborted"),
+        );
       },
       { once: true },
     );

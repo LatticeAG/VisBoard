@@ -98,9 +98,8 @@ function hmacMatches(
     return { valid: false, reason: "Missing webhook signature" };
   }
 
-  const candidate = prefix && received.startsWith(prefix)
-    ? received.slice(prefix.length)
-    : received;
+  const candidate =
+    prefix && received.startsWith(prefix) ? received.slice(prefix.length) : received;
   const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
 
   if (candidate.length !== expected.length) {
@@ -189,7 +188,8 @@ class GitHubIssuesAdapter implements ExternalSyncAdapter {
 
   normalizeWebhook(input: ProviderWebhookInput): NormalizedExternalChange[] {
     const payload = parsePayload(input.rawBody);
-    const eventType = header(input.headers, "x-github-event") ?? asString(payload.action) ?? "unknown";
+    const eventType =
+      header(input.headers, "x-github-event") ?? asString(payload.action) ?? "unknown";
     const deliveryId =
       header(input.headers, "x-github-delivery") ??
       asString(payload.delivery_id) ??
@@ -233,7 +233,11 @@ class GitHubIssuesAdapter implements ExternalSyncAdapter {
     ];
   }
 
-  toOutboundMutation(externalId: string, local: Record<string, unknown>, mappings: readonly FieldMapping[]) {
+  toOutboundMutation(
+    externalId: string,
+    local: Record<string, unknown>,
+    mappings: readonly FieldMapping[],
+  ) {
     const mapped = mappedValues(local, mappings);
     const body: Record<string, unknown> = {};
     if (mapped.title !== undefined) body.title = mapped.title;
@@ -297,7 +301,11 @@ class NotionAdapter implements ExternalSyncAdapter {
     ];
   }
 
-  toOutboundMutation(externalId: string, local: Record<string, unknown>, mappings: readonly FieldMapping[]) {
+  toOutboundMutation(
+    externalId: string,
+    local: Record<string, unknown>,
+    mappings: readonly FieldMapping[],
+  ) {
     const mapped = mappedValues(local, mappings);
     const properties: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(mapped)) {
@@ -314,8 +322,7 @@ class LinearAdapter implements ExternalSyncAdapter {
     return hmacMatches(
       input.rawBody,
       input.secret,
-      header(input.headers, "linear-signature") ??
-        header(input.headers, "x-linear-signature"),
+      header(input.headers, "linear-signature") ?? header(input.headers, "x-linear-signature"),
     );
   }
 
@@ -363,7 +370,11 @@ class LinearAdapter implements ExternalSyncAdapter {
     ];
   }
 
-  toOutboundMutation(externalId: string, local: Record<string, unknown>, mappings: readonly FieldMapping[]) {
+  toOutboundMutation(
+    externalId: string,
+    local: Record<string, unknown>,
+    mappings: readonly FieldMapping[],
+  ) {
     const mapped = mappedValues(local, mappings);
     const body: Record<string, unknown> = {};
     if (mapped.title !== undefined) body.title = mapped.title;

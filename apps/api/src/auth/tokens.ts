@@ -1,12 +1,9 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 
-const BASE62 =
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const BASE62 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 export function hashToken(token: string, pepper: string): string {
-  return createHash("sha256")
-    .update(token + pepper)
-    .digest("hex");
+  return createHmac("sha256", pepper).update(token).digest("hex");
 }
 
 export function tokenPrefix(token: string): string {

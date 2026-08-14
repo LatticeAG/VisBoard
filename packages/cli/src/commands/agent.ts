@@ -68,7 +68,7 @@ export function registerAgentCommands(program: Command): void {
       } else {
         outputData(created, globals);
         if (created.token) {
-          outputText(`Token (save now — shown once): ${created.token}`, globals);
+          outputText(`Token (save now; shown once): ${created.token}`, globals);
         }
       }
     });

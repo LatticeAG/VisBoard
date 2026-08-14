@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { SettingsModal } from './settings-modal';
-import { hasToken } from '@/lib/auth';
+import { hasToken } from "@/lib/auth";
+import { useEffect, useState } from "react";
+import { SettingsModal } from "./settings-modal";
 
 interface AppHeaderProps {
   title?: string;
@@ -40,10 +40,10 @@ export function AppHeader({ title, breadcrumb }: AppHeaderProps) {
 
       <div className="ml-auto flex items-center gap-3">
         <span
-          className={`font-mono text-xs ${authed ? 'text-success' : 'text-muted'}`}
-          title={authed ? 'Token configured' : 'No token'}
+          className={`font-mono text-xs ${authed ? "text-success" : "text-muted"}`}
+          title={authed ? "Token configured" : "No token"}
         >
-          {authed ? '● authed' : '○ no token'}
+          {authed ? "● authed" : "○ no token"}
         </span>
         <button
           type="button"

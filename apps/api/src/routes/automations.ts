@@ -1,14 +1,16 @@
+import type { Database } from "@visboard/db";
 import { createAutomationRuleSchema } from "@visboard/shared";
-import { Hono, type Context } from "hono";
+import { type Context, Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
-import { getDb } from "../db.js";
-import { assertWorkspaceAccess } from "../lib/helpers.js";
+import { getDb, isPersistableDb } from "../db.js";
 import { badRequest, forbidden, notFound } from "../lib/errors.js";
-import { getBoard } from "../services/board.js";
+import { assertWorkspaceAccess } from "../lib/helpers.js";
 import { AutomationEngine } from "../services/automation.js";
+import { getBoard } from "../services/board.js";
 import { getWorkspaceById } from "../services/workspace.js";
 
 type JsonRecord = Record<string, unknown>;
+type Store = Database["db"];
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -22,15 +24,31 @@ function asString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-let automationEngine = new AutomationEngine();
+let memoryEngine = new AutomationEngine();
+const persistableEngines = new WeakMap<object, AutomationEngine>();
 
-export function getAutomationEngine(): AutomationEngine {
-  return automationEngine;
+export function getAutomationEngine(db?: Store): AutomationEngine {
+  if (db && isPersistableDb(db)) {
+    let engine = persistableEngines.get(db);
+    if (!engine) {
+      engine = new AutomationEngine({ db });
+      persistableEngines.set(db, engine);
+    }
+    return engine;
+  }
+  return memoryEngine;
+}
+
+export function setAutomationEngine(engine: AutomationEngine): void {
+  memoryEngine = engine;
+  if (engine.db && isPersistableDb(engine.db)) {
+    persistableEngines.set(engine.db, engine);
+  }
 }
 
 /** Used by board/event wiring and route tests to create a clean reference worker. */
 export function resetAutomationRoutesForTests(): void {
-  automationEngine = new AutomationEngine();
+  memoryEngine = new AutomationEngine();
 }
 
 async function requireWorkspace(c: Context) {
@@ -46,21 +64,19 @@ async function requireWorkspace(c: Context) {
 
 async function assertRuleAccess(c: Context, runId: string) {
   const auth = c.get("auth");
-  const run = automationEngine.getRun(runId);
+  const { db } = getDb();
+  const engine = getAutomationEngine(db);
+  const run = engine.getRun(runId);
   if (!run) throw notFound(`Automation run '${runId}' not found`);
-  const rule = automationEngine.getRule(run.rule_id);
+  const rule = engine.getRule(run.rule_id);
   if (!rule) throw notFound(`Automation rule '${run.rule_id}' not found`);
   if (!auth.workspaceIds.includes(rule.workspace_id)) {
     throw forbidden("You do not have access to this automation run");
   }
-  return { run, rule };
+  return { run, rule, engine };
 }
 
-async function parseRuleForWorkspace(
-  c: Context,
-  workspaceId: string,
-  body: JsonRecord,
-) {
+async function parseRuleForWorkspace(c: Context, workspaceId: string, body: JsonRecord) {
   const boardId = asString(body.board_id);
   if (boardId) {
     const { db } = getDb();
@@ -84,9 +100,8 @@ async function parseRuleForWorkspace(
 }
 
 /**
- * In-memory V2 automation administration. Board event dispatch is intentionally
- * separate: the control-plane command path calls `getAutomationEngine()
- * .processEvent(...)` after it commits its durable semantic event.
+ * V2 automation administration. Board event dispatch calls
+ * getAutomationEngine(db).processEvent after it commits its durable semantic event.
  */
 export const automationRoutes = new Hono();
 automationRoutes.use("*", authMiddleware);
@@ -95,8 +110,8 @@ automationRoutes.get(
   "/workspaces/:workspace/automation-rules",
   requireScope("read", "admin"),
   async (c) => {
-    const { workspaceId } = await requireWorkspace(c);
-    return c.json({ data: automationEngine.listRules(workspaceId) });
+    const { db, workspaceId } = await requireWorkspace(c);
+    return c.json({ data: getAutomationEngine(db).listRules(workspaceId) });
   },
 );
 
@@ -104,10 +119,12 @@ automationRoutes.post(
   "/workspaces/:workspace/automation-rules",
   requireScope("admin"),
   async (c) => {
-    const { workspaceId } = await requireWorkspace(c);
-    const rule = automationEngine.createRule(
+    const { db, workspaceId } = await requireWorkspace(c);
+    const engine = getAutomationEngine(db);
+    const rule = engine.createRule(
       await parseRuleForWorkspace(c, workspaceId, asRecord(await c.req.json())),
     );
+    await engine.flush();
     return c.json(rule, 201);
   },
 );
@@ -116,28 +133,27 @@ automationRoutes.patch(
   "/workspaces/:workspace/automation-rules/:rule",
   requireScope("admin"),
   async (c) => {
-    const { workspaceId } = await requireWorkspace(c);
+    const { db, workspaceId } = await requireWorkspace(c);
+    const engine = getAutomationEngine(db);
     const ruleId = c.req.param("rule");
     if (!ruleId) throw badRequest("Missing rule path parameter");
-    const current = automationEngine.getRule(ruleId);
+    const current = engine.getRule(ruleId);
     if (!current || current.workspace_id !== workspaceId) {
       throw notFound(`Automation rule '${ruleId}' not found`);
     }
     const body = asRecord(await c.req.json());
-    // Rule changes are revalidated through the engine before becoming active.
-    const updated = automationEngine.updateRule(ruleId, {
+    const updated = engine.updateRule(ruleId, {
       ...(body.name === undefined ? {} : { name: body.name as string }),
       ...(body.enabled === undefined ? {} : { enabled: body.enabled as boolean }),
       ...(body.trigger === undefined ? {} : { trigger: body.trigger as typeof current.trigger }),
       ...(body.actions === undefined ? {} : { actions: body.actions as typeof current.actions }),
-      ...(body.cooldown_ms === undefined
-        ? {}
-        : { cooldown_ms: body.cooldown_ms as number }),
+      ...(body.cooldown_ms === undefined ? {} : { cooldown_ms: body.cooldown_ms as number }),
       ...(body.idempotency_key_template === undefined
         ? {}
         : { idempotency_key_template: body.idempotency_key_template as string }),
     });
     if (!updated) throw notFound(`Automation rule '${ruleId}' not found`);
+    await engine.flush();
     return c.json(updated);
   },
 );
@@ -146,10 +162,11 @@ automationRoutes.get(
   "/workspaces/:workspace/automation-runs",
   requireScope("read", "admin"),
   async (c) => {
-    const { workspaceId } = await requireWorkspace(c);
+    const { db, workspaceId } = await requireWorkspace(c);
+    const engine = getAutomationEngine(db);
     const ruleId = c.req.query("rule");
-    const runs = automationEngine.listRuns(ruleId).filter((run) => {
-      const rule = automationEngine.getRule(run.rule_id);
+    const runs = engine.listRuns(ruleId).filter((run) => {
+      const rule = engine.getRule(run.rule_id);
       return rule?.workspace_id === workspaceId;
     });
     return c.json({ data: runs });
@@ -170,8 +187,8 @@ automationRoutes.post(
     const runId = c.req.param("run");
     const actionId = c.req.param("action");
     if (!runId || !actionId) throw badRequest("Missing run or action path parameter");
-    await assertRuleAccess(c, runId);
-    const updated = await automationEngine.approveAction(runId, actionId);
+    const { engine } = await assertRuleAccess(c, runId);
+    const updated = await engine.approveAction(runId, actionId, undefined, c.get("auth").id);
     if (!updated) throw notFound(`Automation run '${runId}' not found`);
     return c.json(updated);
   },
@@ -184,8 +201,8 @@ automationRoutes.post(
     const runId = c.req.param("run");
     const actionId = c.req.param("action");
     if (!runId || !actionId) throw badRequest("Missing run or action path parameter");
-    await assertRuleAccess(c, runId);
-    const updated = await automationEngine.retryAction(runId, actionId);
+    const { engine } = await assertRuleAccess(c, runId);
+    const updated = await engine.retryAction(runId, actionId);
     if (!updated) throw notFound(`Automation run '${runId}' not found`);
     return c.json(updated);
   },

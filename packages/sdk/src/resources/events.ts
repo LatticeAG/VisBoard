@@ -10,13 +10,10 @@ export class EventsResource {
   constructor(private readonly http: HttpClient) {}
 
   append(ws: string, project: string, input: CreateEventInput): Promise<EventRecord> {
-    return this.http.request<EventRecord>(
-      `/workspaces/${ws}/projects/${project}/events`,
-      {
-        method: "POST",
-        body: input,
-      },
-    );
+    return this.http.request<EventRecord>(`/workspaces/${ws}/projects/${project}/events`, {
+      method: "POST",
+      body: input,
+    });
   }
 
   list(

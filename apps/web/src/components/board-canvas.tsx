@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import type { BoardBlock } from '@visboard/sdk';
-import { MarkdownPreview } from './markdown-preview';
+import type { BoardBlock } from "@visboard/sdk";
+import { MarkdownPreview } from "./markdown-preview";
 
 interface BoardCanvasProps {
   blocks: BoardBlock[];
@@ -12,7 +12,7 @@ interface BoardCanvasProps {
 type UnknownRecord = Record<string, unknown>;
 
 function isRecord(value: unknown): value is UnknownRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function textFrom(block: BoardBlock): string {
@@ -24,14 +24,14 @@ function textFrom(block: BoardBlock): string {
     block.attributes.source,
     block.attributes.text,
   ];
-  const found = candidates.find((value) => typeof value === 'string');
-  return typeof found === 'string' ? found : '';
+  const found = candidates.find((value) => typeof value === "string");
+  return typeof found === "string" ? found : "";
 }
 
 function titleFrom(block: BoardBlock): string {
   const candidates = [block.attributes.title, block.content.title, block.type];
-  const found = candidates.find((value) => typeof value === 'string');
-  return typeof found === 'string' ? found : block.type;
+  const found = candidates.find((value) => typeof value === "string");
+  return typeof found === "string" ? found : block.type;
 }
 
 function recordArray(value: unknown): UnknownRecord[] {
@@ -39,9 +39,9 @@ function recordArray(value: unknown): UnknownRecord[] {
 }
 
 function valueText(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return '';
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  return "";
 }
 
 function KanbanBlock({ block }: { block: BoardBlock }) {
@@ -57,10 +57,11 @@ function KanbanBlock({ block }: { block: BoardBlock }) {
       {columns.map((column, index) => {
         const stateKey = valueText(column.state_key ?? column.id ?? column.key);
         const title = valueText(column.title ?? column.name) || `Column ${index + 1}`;
-        const matching = cards.filter((card) =>
-          valueText(card.lane_id ?? card.state_key ?? card.column_id) === stateKey,
+        const matching = cards.filter(
+          (card) => valueText(card.lane_id ?? card.state_key ?? card.column_id) === stateKey,
         );
         return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: board-canvas.tsx kanban columns lack stable ids in legacy data
           <section key={`${stateKey}-${index}`} className="border border-border bg-bg">
             <header className="border-b border-border px-3 py-2 font-mono text-xs text-muted">
               {title}
@@ -73,7 +74,7 @@ function KanbanBlock({ block }: { block: BoardBlock }) {
                   className="border border-border bg-surface px-3 py-2"
                 >
                   <p className="font-mono text-xs text-text">
-                    {valueText(card.title ?? card.name) || 'Untitled card'}
+                    {valueText(card.title ?? card.name) || "Untitled card"}
                   </p>
                   {valueText(card.assignee ?? card.owner) && (
                     <p className="mt-1 font-mono text-[10px] text-muted">
@@ -99,14 +100,14 @@ function MermaidBlock({ block }: { block: BoardBlock }) {
     <div>
       <p className="mb-2 font-mono text-xs text-muted">Mermaid source</p>
       <pre className="overflow-x-auto border border-border bg-bg p-3 font-mono text-xs leading-5 text-text">
-        {source || 'No diagram source'}
+        {source || "No diagram source"}
       </pre>
     </div>
   );
 }
 
 function CodeBlock({ block }: { block: BoardBlock }) {
-  const language = valueText(block.attributes.language) || 'text';
+  const language = valueText(block.attributes.language) || "text";
   return (
     <div>
       <div className="mb-2 flex items-center justify-between font-mono text-xs text-muted">
@@ -116,7 +117,7 @@ function CodeBlock({ block }: { block: BoardBlock }) {
         )}
       </div>
       <pre className="overflow-x-auto border border-border bg-bg p-3 font-mono text-xs leading-5 text-text">
-        {textFrom(block) || 'No source'}
+        {textFrom(block) || "No source"}
       </pre>
     </div>
   );
@@ -124,7 +125,7 @@ function CodeBlock({ block }: { block: BoardBlock }) {
 
 function EmbedBlock({ block }: { block: BoardBlock }) {
   const url = valueText(block.attributes.url ?? block.content.url);
-  const safeUrl = url.startsWith('https://') || url.startsWith('http://') ? url : null;
+  const safeUrl = url.startsWith("https://") || url.startsWith("http://") ? url : null;
   return (
     <div className="border border-border bg-bg p-3">
       <p className="font-mono text-xs text-text">{titleFrom(block)}</p>
@@ -153,10 +154,10 @@ function DashboardBlock({ block }: { block: BoardBlock }) {
       {metrics.map((metric, index) => (
         <div key={valueText(metric.key) || `${index}`} className="bg-surface px-3 py-3">
           <dt className="font-mono text-[10px] uppercase tracking-wide text-muted">
-            {valueText(metric.label ?? metric.key) || 'Metric'}
+            {valueText(metric.label ?? metric.key) || "Metric"}
           </dt>
           <dd className="mt-2 font-mono text-lg text-text">
-            {valueText(metric.value) || 'Unavailable'}
+            {valueText(metric.value) || "Unavailable"}
           </dd>
         </div>
       ))}
@@ -177,15 +178,15 @@ function FallbackBlock({ block }: { block: BoardBlock }) {
 
 function BlockBody({ block }: { block: BoardBlock }) {
   switch (block.type) {
-    case 'core.kanban':
+    case "core.kanban":
       return <KanbanBlock block={block} />;
-    case 'core.mermaid':
+    case "core.mermaid":
       return <MermaidBlock block={block} />;
-    case 'core.code':
+    case "core.code":
       return <CodeBlock block={block} />;
-    case 'core.embed':
+    case "core.embed":
       return <EmbedBlock block={block} />;
-    case 'core.dashboard':
+    case "core.dashboard":
       return <DashboardBlock block={block} />;
     default:
       return <FallbackBlock block={block} />;
@@ -207,7 +208,7 @@ export function BoardCanvas({ blocks, selectedBlockId, onSelectBlock }: BoardCan
       {blocks.map((block) => (
         <article
           key={block.id}
-          className={`border bg-surface ${selectedBlockId === block.id ? 'border-accent' : 'border-border'}`}
+          className={`border bg-surface ${selectedBlockId === block.id ? "border-accent" : "border-border"}`}
         >
           <button
             type="button"

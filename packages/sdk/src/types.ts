@@ -117,6 +117,7 @@ export interface ExportJob {
 export interface HealthStatus {
   status: string;
   version: string;
+  db?: string;
 }
 
 export interface ListEventsParams {

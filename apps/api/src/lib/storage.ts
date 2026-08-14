@@ -7,19 +7,12 @@ export function sanitizeFilename(name: string): string {
   return base.replace(/[^\w.\-]/g, "_").slice(0, 255) || "file";
 }
 
-export function buildStoragePath(
-  projectId: string,
-  fileId: string,
-  filename: string,
-): string {
+export function buildStoragePath(projectId: string, fileId: string, filename: string): string {
   const safe = sanitizeFilename(filename);
   return join(projectId, fileId, safe);
 }
 
-export async function saveFile(
-  storagePath: string,
-  data: Uint8Array,
-): Promise<void> {
+export async function saveFile(storagePath: string, data: Uint8Array): Promise<void> {
   const env = getEnv();
   const fullPath = join(env.VISBOARD_DATA_DIR, storagePath);
   await mkdir(dirname(fullPath), { recursive: true });

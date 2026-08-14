@@ -1,19 +1,10 @@
-import {
-  personalAccessTokens,
-  users,
-  workspaceMembers,
-  workspaces,
-} from "@visboard/db";
-import { PREFIX, createId, slugify } from "@visboard/shared";
-import { count, eq } from "drizzle-orm";
+import { personalAccessTokens, users, workspaceMembers, workspaces } from "@visboard/db";
 import type { Database } from "@visboard/db";
+import { PREFIX, createId, slugify } from "@visboard/shared";
+import { and, count, eq, inArray, isNull } from "drizzle-orm";
+import { generatePatToken, hashToken, tokenPrefix } from "../auth/tokens.js";
 import { getEnv } from "../env.js";
 import { conflict, forbidden } from "../lib/errors.js";
-import {
-  generatePatToken,
-  hashToken,
-  tokenPrefix,
-} from "../auth/tokens.js";
 
 export interface BootstrapInput {
   name: string;
@@ -21,20 +12,14 @@ export interface BootstrapInput {
   bootstrapToken?: string;
 }
 
-export async function bootstrap(
-  db: Database["db"],
-  input: BootstrapInput,
-) {
+export async function bootstrap(db: Database["db"], input: BootstrapInput) {
   const env = getEnv();
-  const [countRow] = await db
-    .select({ value: count() })
-    .from(workspaces);
+  const [countRow] = await db.select({ value: count() }).from(workspaces);
   const workspaceCount = countRow?.value ?? 0;
 
   const allowedByEmpty = workspaceCount === 0;
   const allowedByToken =
-    env.VISBOARD_BOOTSTRAP_TOKEN &&
-    input.bootstrapToken === env.VISBOARD_BOOTSTRAP_TOKEN;
+    env.VISBOARD_BOOTSTRAP_TOKEN && input.bootstrapToken === env.VISBOARD_BOOTSTRAP_TOKEN;
 
   if (!allowedByEmpty && !allowedByToken) {
     throw forbidden("Bootstrap is only allowed when no workspaces exist");
@@ -45,11 +30,7 @@ export async function bootstrap(
     throw conflict("Slug must be 3-48 lowercase alphanumeric characters");
   }
 
-  const existing = await db
-    .select()
-    .from(workspaces)
-    .where(eq(workspaces.slug, slug))
-    .limit(1);
+  const existing = await db.select().from(workspaces).where(eq(workspaces.slug, slug)).limit(1);
   if (existing.length > 0) {
     throw conflict(`Workspace slug '${slug}' already exists`);
   }
@@ -60,59 +41,61 @@ export async function bootstrap(
   const rawToken = generatePatToken();
   const now = new Date();
 
-  const [workspace] = await db
-    .insert(workspaces)
-    .values({
-      id: workspaceId,
-      slug,
-      name: input.name,
+  return await db.transaction(async (tx) => {
+    const [workspace] = await tx
+      .insert(workspaces)
+      .values({
+        id: workspaceId,
+        slug,
+        name: input.name,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning();
+    if (!workspace) throw new Error("Failed to bootstrap workspace");
+
+    const [user] = await tx
+      .insert(users)
+      .values({
+        id: userId,
+        displayName: "Admin",
+        createdAt: now,
+      })
+      .returning();
+    if (!user) throw new Error("Failed to bootstrap user");
+
+    await tx.insert(workspaceMembers).values({
+      workspaceId,
+      userId,
+      role: "owner",
       createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
+    });
 
-  const [user] = await db
-    .insert(users)
-    .values({
-      id: userId,
-      displayName: "Admin",
+    await tx.insert(personalAccessTokens).values({
+      id: patId,
+      userId,
+      name: "Bootstrap Admin",
+      tokenHash: hashToken(rawToken, env.VISBOARD_TOKEN_PEPPER),
+      tokenPrefix: tokenPrefix(rawToken),
+      scopes: ["admin"],
       createdAt: now,
-    })
-    .returning();
+    });
 
-  await db.insert(workspaceMembers).values({
-    workspaceId,
-    userId,
-    role: "owner",
-    createdAt: now,
+    return {
+      workspace: formatWorkspace(workspace),
+      user: formatUser(user),
+      token: rawToken,
+    };
   });
-
-  await db.insert(personalAccessTokens).values({
-    id: patId,
-    userId,
-    name: "Bootstrap Admin",
-    tokenHash: hashToken(rawToken, env.VISBOARD_TOKEN_PEPPER),
-    tokenPrefix: tokenPrefix(rawToken),
-    scopes: ["admin"],
-    createdAt: now,
-  });
-
-  return {
-    workspace: formatWorkspace(workspace!),
-    user: formatUser(user!),
-    token: rawToken,
-  };
 }
 
-export async function listWorkspaces(
-  db: Database["db"],
-  workspaceIds: string[],
-) {
+export async function listWorkspaces(db: Database["db"], workspaceIds: string[]) {
   if (workspaceIds.length === 0) return [];
-  const rows = await db.select().from(workspaces);
-  return rows
-    .filter((w) => workspaceIds.includes(w.id) && !w.deletedAt)
-    .map(formatWorkspace);
+  const rows = await db
+    .select()
+    .from(workspaces)
+    .where(and(inArray(workspaces.id, workspaceIds), isNull(workspaces.deletedAt)));
+  return rows.map(formatWorkspace);
 }
 
 export async function createWorkspace(
@@ -138,6 +121,7 @@ export async function createWorkspace(
       updatedAt: now,
     })
     .returning();
+  if (!workspace) throw new Error("Failed to create workspace");
 
   await db.insert(workspaceMembers).values({
     workspaceId,
@@ -146,26 +130,18 @@ export async function createWorkspace(
     createdAt: now,
   });
 
-  return formatWorkspace(workspace!);
+  return formatWorkspace(workspace);
 }
 
 export async function getWorkspaceBySlug(db: Database["db"], slug: string) {
-  const [row] = await db
-    .select()
-    .from(workspaces)
-    .where(eq(workspaces.slug, slug))
-    .limit(1);
+  const [row] = await db.select().from(workspaces).where(eq(workspaces.slug, slug)).limit(1);
   if (!row || row.deletedAt) return null;
   return row;
 }
 
 /** V2 routes use canonical workspace IDs rather than ambiguous slugs. */
 export async function getWorkspaceById(db: Database["db"], workspaceId: string) {
-  const [row] = await db
-    .select()
-    .from(workspaces)
-    .where(eq(workspaces.id, workspaceId))
-    .limit(1);
+  const [row] = await db.select().from(workspaces).where(eq(workspaces.id, workspaceId)).limit(1);
   if (!row || row.deletedAt) return null;
   return row;
 }
@@ -181,7 +157,8 @@ export async function updateWorkspace(
     .set({ ...input, updatedAt: now })
     .where(eq(workspaces.id, workspaceId))
     .returning();
-  return formatWorkspace(row!);
+  if (!row) throw new Error("Failed to update workspace");
+  return formatWorkspace(row);
 }
 
 function formatWorkspace(w: typeof workspaces.$inferSelect) {

@@ -1,8 +1,14 @@
+import {
+  createChecklistItemSchema,
+  createChecklistSchema,
+  updateChecklistItemSchema,
+  updateChecklistSchema,
+} from "@visboard/shared";
 import { Hono } from "hono";
 import { authMiddleware, requireScope } from "../auth/middleware.js";
 import { getDb } from "../db.js";
-import { assertWorkspaceAccess } from "../lib/helpers.js";
-import { getWorkspaceBySlug } from "../services/workspace.js";
+import { assertWorkspaceAccess, reqParam } from "../lib/helpers.js";
+import { readJson } from "../lib/json.js";
 import {
   addChecklistItem,
   createChecklist,
@@ -12,6 +18,7 @@ import {
   updateChecklist,
   updateChecklistItem,
 } from "../services/checklist.js";
+import { getWorkspaceBySlug } from "../services/workspace.js";
 
 export const checklistRoutes = new Hono();
 
@@ -19,8 +26,8 @@ checklistRoutes.use("*", authMiddleware);
 
 checklistRoutes.get("/", requireScope("read"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -34,9 +41,9 @@ checklistRoutes.get("/", requireScope("read"), async (c) => {
 
 checklistRoutes.post("/", requireScope("write:checklists", "admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
-  const body = await c.req.json<{ title: string; source_note_id?: string }>();
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const body = await readJson(c, createChecklistSchema);
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -50,9 +57,9 @@ checklistRoutes.post("/", requireScope("write:checklists", "admin"), async (c) =
 
 checklistRoutes.get("/:id", requireScope("read"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
-  const checklistId = c.req.param("id")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const checklistId = reqParam(c, "id");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -72,10 +79,10 @@ checklistRoutes.get("/:id", requireScope("read"), async (c) => {
 
 checklistRoutes.patch("/:id", requireScope("write:checklists", "admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
-  const checklistId = c.req.param("id")!;
-  const body = await c.req.json<{ title?: string }>();
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const checklistId = reqParam(c, "id");
+  const body = await readJson(c, updateChecklistSchema);
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -83,22 +90,15 @@ checklistRoutes.patch("/:id", requireScope("write:checklists", "admin"), async (
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  const checklist = await updateChecklist(
-    db,
-    wsSlug,
-    projectSlug,
-    checklistId,
-    auth,
-    body,
-  );
+  const checklist = await updateChecklist(db, wsSlug, projectSlug, checklistId, auth, body);
   return c.json(checklist);
 });
 
 checklistRoutes.delete("/:id", requireScope("write:checklists", "admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
-  const checklistId = c.req.param("id")!;
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const checklistId = reqParam(c, "id");
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -112,10 +112,10 @@ checklistRoutes.delete("/:id", requireScope("write:checklists", "admin"), async 
 
 checklistRoutes.post("/:id/items", requireScope("write:checklists", "admin"), async (c) => {
   const auth = c.get("auth");
-  const wsSlug = c.req.param("ws")!;
-  const projectSlug = c.req.param("p")!;
-  const checklistId = c.req.param("id")!;
-  const body = await c.req.json<{ text: string; sort_order?: number }>();
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const checklistId = reqParam(c, "id");
+  const body = await readJson(c, createChecklistItemSchema);
   const { db } = getDb();
   const ws = await getWorkspaceBySlug(db, wsSlug);
   if (!ws) {
@@ -123,50 +123,31 @@ checklistRoutes.post("/:id/items", requireScope("write:checklists", "admin"), as
     throw notFound(`Workspace '${wsSlug}' not found`);
   }
   assertWorkspaceAccess(auth, ws.id);
-  const checklist = await addChecklistItem(
-    db,
-    wsSlug,
-    projectSlug,
-    checklistId,
-    auth,
-    body,
-  );
+  const checklist = await addChecklistItem(db, wsSlug, projectSlug, checklistId, auth, body);
   return c.json(checklist, 201);
 });
 
-checklistRoutes.patch(
-  "/:id/items/:item",
-  requireScope("write:checklists", "admin"),
-  async (c) => {
-    const auth = c.get("auth");
-    const wsSlug = c.req.param("ws")!;
-    const projectSlug = c.req.param("p")!;
-    const checklistId = c.req.param("id")!;
-    const itemId = c.req.param("item")!;
-    const body = await c.req.json<{
-      text?: string;
-      done?: boolean;
-      assignee_type?: string;
-      assignee_id?: string;
-      due_at?: string;
-      blocked_by?: string[];
-    }>();
-    const { db } = getDb();
-    const ws = await getWorkspaceBySlug(db, wsSlug);
-    if (!ws) {
-      const { notFound } = await import("../lib/errors.js");
-      throw notFound(`Workspace '${wsSlug}' not found`);
-    }
-    assertWorkspaceAccess(auth, ws.id);
-    const checklist = await updateChecklistItem(
-      db,
-      wsSlug,
-      projectSlug,
-      checklistId,
-      itemId,
-      auth,
-      body,
-    );
-    return c.json(checklist);
-  },
-);
+checklistRoutes.patch("/:id/items/:item", requireScope("write:checklists", "admin"), async (c) => {
+  const auth = c.get("auth");
+  const wsSlug = reqParam(c, "ws");
+  const projectSlug = reqParam(c, "p");
+  const checklistId = reqParam(c, "id");
+  const itemId = reqParam(c, "item");
+  const body = await readJson(c, updateChecklistItemSchema);
+  const { db } = getDb();
+  const ws = await getWorkspaceBySlug(db, wsSlug);
+  if (!ws) {
+    const { notFound } = await import("../lib/errors.js");
+    throw notFound(`Workspace '${wsSlug}' not found`);
+  }
+  assertWorkspaceAccess(auth, ws.id);
+  const checklist = await updateChecklistItem(db, wsSlug, projectSlug, checklistId, itemId, auth, {
+    text: body.text,
+    done: body.done,
+    assignee_type: body.assignee_type ?? undefined,
+    assignee_id: body.assignee_id ?? undefined,
+    due_at: body.due_at ?? undefined,
+    blocked_by: body.blocked_by,
+  });
+  return c.json(checklist);
+});
