@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "NODE_ENV=development vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@visboard/sdk": "workspace:*",
