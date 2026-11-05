@@ -140,7 +140,8 @@ cd apps/web
 pnpm exec playwright test e2e/onboarding.spec.ts
 ```
 
-Playwright starts the web server automatically; its port must be free. The
+Playwright builds the production web app and starts it automatically; its port
+must be free. The
 current onboarding test does not need a running API or database.
 
 ## Architecture

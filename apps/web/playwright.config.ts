@@ -13,12 +13,10 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    // next start is incompatible with output: standalone, so serve via
-    // dev mode for e2e (dev-server-only change; prod build untouched).
-    command: `npx next dev --port ${port}`,
+    command: `pnpm exec next build && pnpm exec next start --port ${port}`,
     url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    reuseExistingServer: false,
+    timeout: 300_000,
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });
