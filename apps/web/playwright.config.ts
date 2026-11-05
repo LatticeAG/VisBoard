@@ -13,7 +13,9 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    command: `pnpm exec next build && pnpm exec next start --port ${port}`,
+    // `next start` does not support `output: "standalone"` (Next warns and
+    // refuses to serve correctly), so run the emitted standalone server instead.
+    command: `pnpm exec next build && PORT=${port} node scripts/serve-standalone.mjs`,
     url: baseURL,
     reuseExistingServer: false,
     timeout: 300_000,
