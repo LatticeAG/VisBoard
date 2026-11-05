@@ -72,7 +72,10 @@ pnpm build
 # 2. Choose a database and export its URL in this shell.
 # Option A: start the Compose Postgres service:
 docker compose up -d postgres
-export DATABASE_URL=postgresql://visboard:visboard@localhost:5432/visboard
+export DATABASE_URL=postgresql://visboard:visboard@localhost:5433/visboard
+
+# Set POSTGRES_PORT before docker compose up to choose another host port;
+# use the same port in DATABASE_URL. Container-to-container traffic uses 5432.
 
 # Option B: use an existing local Postgres instead (no Docker needed).
 # Create an empty database and a user with permission to create tables, then
@@ -105,7 +108,8 @@ Open http://localhost:3000 -- paste your PAT in Settings.
 
 ```bash
 docker compose up -d
-pnpm --filter @visboard/db db:migrate   # against localhost:5432
+export DATABASE_URL=postgresql://visboard:visboard@localhost:5433/visboard
+pnpm --filter @visboard/db db:migrate
 ```
 
 ### Smoke test

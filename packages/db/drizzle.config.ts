@@ -5,6 +5,6 @@ export default defineConfig({
   out: "./src/migrations",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL ?? "postgresql://visboard:visboard@localhost:5432/visboard",
+    url: process.env.DATABASE_URL ?? "postgresql://visboard:visboard@localhost:5433/visboard",
   },
 });
