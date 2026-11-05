@@ -112,12 +112,36 @@ export DATABASE_URL=postgresql://visboard:visboard@localhost:5433/visboard
 pnpm --filter @visboard/db db:migrate
 ```
 
-### Smoke test
+### Product and UI checks
+
+Run `scripts/smoke.sh` for the API/CLI product proof: it bootstraps a workspace,
+creates projects, notes, checklists and an agent, and exercises file upload and
+export/import. It needs built API and CLI packages, a running API with `/readyz`
+reporting `db: ok`, and a migrated database with no workspaces. Bootstrap only
+works once. Use a dedicated disposable database for repeat runs; `db:reset`
+drops its public and drizzle schemas, so never run it against data you need.
 
 ```bash
-chmod +x scripts/smoke.sh
-./scripts/smoke.sh
+# DATABASE_URL must point to your dedicated disposable database.
+pnpm --filter @visboard/db db:reset
+pnpm --filter @visboard/db db:migrate
+# Start the API in another terminal with the same DATABASE_URL, then:
+bash scripts/smoke.sh
 ```
+
+Playwright covers browser UI end-to-end behavior; it does not replace the
+API/CLI smoke test. Run both when validating a release or changes spanning the
+UI and API. The current UI test checks saving a token in Settings, not a full
+backend workflow. Install dependencies and the Playwright Chromium browser
+(`pnpm --filter @visboard/web exec playwright install chromium`), then run:
+
+```bash
+cd apps/web
+pnpm exec playwright test e2e/onboarding.spec.ts
+```
+
+Playwright starts the web server automatically; its port must be free. The
+current onboarding test does not need a running API or database.
 
 ## Architecture
 
