@@ -69,13 +69,22 @@ Built for teams designing autonomous agent collaboration, not just chat. OSS-fir
 pnpm install
 pnpm build
 
-# 2. Start Postgres (Docker)
+# 2. Choose a database and export its URL in this shell.
+# Option A: start the Compose Postgres service:
 docker compose up -d postgres
+export DATABASE_URL=postgresql://visboard:visboard@localhost:5432/visboard
 
-# 3. Configure environment
+# Option B: use an existing local Postgres instead (no Docker needed).
+# Create an empty database and a user with permission to create tables, then
+# substitute your own credentials, port, and database name:
+# export DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/DATABASE
+
+# 3. Configure the remaining environment values
 cp .env.example .env
+# .env is not automatically loaded by every command. Export DATABASE_URL
+# as above in every terminal running database commands or the API.
 
-# 4. Migrate database
+# 4. Apply migrations to the chosen database
 pnpm --filter @visboard/db db:migrate
 
 # 5. (Optional) Seed demo workspace
@@ -218,7 +227,7 @@ Security, contributor, and agent notes: [SECURITY.md](./SECURITY.md), [CONTRIBUT
 
 ## Development
 
-**Requirements:** Node 22+, pnpm 9+, Docker (Postgres).
+**Requirements:** Node 22+, pnpm 9+, PostgreSQL 16 (local or Docker).
 
 ```bash
 pnpm install
@@ -232,7 +241,7 @@ CI runs on every push to `main` and on pull requests.
 
 ## Known Issues
 
-- **PostgreSQL required** - VisBoard does not support SQLite. Postgres-specific features (row-level locking, LISTEN/NOTIFY on `visboard_events`) are used throughout. Use the Docker Compose setup for development.
+- **PostgreSQL required** - VisBoard does not support SQLite. Postgres-specific features (row-level locking, LISTEN/NOTIFY on `visboard_events`) are used throughout. Use a local Postgres instance or the Docker Compose setup for development.
 - **File storage is local** - File uploads write to the local filesystem. For multi-replica deployments, mount a shared volume or replace the storage backend.
 - **SSE across API processes** - Event rows are durable. `LISTEN/NOTIFY` on channel `visboard_events` fans the latest project event to other API processes sharing the same database. Redis is not used.
 - **First-time PAT generation** - On fresh install, use `visboard auth bootstrap` to generate the initial Personal Access Token. The web UI requires a PAT to authenticate.
