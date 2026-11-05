@@ -69,7 +69,13 @@ Built for teams designing autonomous agent collaboration, not just chat. OSS-fir
 pnpm install
 pnpm build
 
-# 2. Choose a database and export its URL in this shell.
+# 2. Load the example environment; repeat in each API terminal.
+cp .env.example .env
+set -a
+. ./.env
+set +a
+
+# 3. Choose a database and export its URL in this shell.
 # Option A: start the Compose Postgres service:
 docker compose up -d postgres
 export DATABASE_URL=postgresql://visboard:visboard@localhost:5433/visboard
@@ -82,21 +88,17 @@ export DATABASE_URL=postgresql://visboard:visboard@localhost:5433/visboard
 # substitute your own credentials, port, and database name:
 # export DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/DATABASE
 
-# 3. Configure the remaining environment values
-cp .env.example .env
 # .env is not automatically loaded by every command. Export DATABASE_URL
 # as above in every terminal running database commands or the API.
 
 # 4. Apply migrations to the chosen database
 pnpm --filter @visboard/db db:migrate
 
-# 5. (Optional) Seed demo workspace
-pnpm --filter @visboard/db db:seed
-# Preferred for admin token:
-pnpm --filter @visboard/cli exec visboard auth bootstrap --name "My Workspace"
-
-# 6. Start API (terminal 1)
+# 5. Start API (terminal 1)
 pnpm --filter @visboard/api dev
+
+# 6. Bootstrap an empty database and save the admin token (terminal 2)
+pnpm --filter @visboard/cli exec visboard auth bootstrap --name "My Workspace"
 
 # 7. Start web UI (terminal 2)
 pnpm --filter @visboard/web dev
