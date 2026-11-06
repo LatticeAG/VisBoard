@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 // Serve the production build from Next's standalone output.
 //
 // `next start` refuses to work with `output: "standalone"` (it prints a warning
@@ -5,7 +6,6 @@
 // after copying the static assets into the standalone tree, which is what this
 // script does. Used by Playwright's webServer and available for local prod runs.
 import { cpSync, existsSync } from "node:fs";
-import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 

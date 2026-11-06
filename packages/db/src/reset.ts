@@ -8,7 +8,9 @@ import { createDbFromEnv } from "./client.js";
 async function reset() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
-    console.error("DATABASE_URL is required. Set it to the database to reset, for example:\n  export DATABASE_URL=postgresql://visboard:visboard@localhost:5433/visboard");
+    console.error(
+      "DATABASE_URL is required. Set it to the database to reset, for example:\n  export DATABASE_URL=postgresql://visboard:visboard@localhost:5433/visboard",
+    );
     process.exit(1);
   }
 
