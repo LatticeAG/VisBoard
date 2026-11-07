@@ -1,4 +1,7 @@
 import { createDbFromEnv } from "./client.js";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 
 /**
  * Drop and recreate the public schema.
@@ -6,13 +9,22 @@ import { createDbFromEnv } from "./client.js";
  * one-time bootstrap (allowed only with zero workspaces) sees an empty DB.
  */
 async function reset() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.error(
-      "DATABASE_URL is required. Set it to the database to reset, for example:\n  export DATABASE_URL=postgresql://visboard:visboard@localhost:5433/visboard",
-    );
-    process.exit(1);
+  let envFileUrl: string | undefined;
+  try {
+    envFileUrl = parseEnv(
+      readFileSync(fileURLToPath(new URL("../../../.env", import.meta.url)), "utf8"),
+    ).DATABASE_URL;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
+  const databaseUrl =
+    process.env.DATABASE_URL ||
+    envFileUrl ||
+    "postgresql://visboard:visboard@localhost:5433/visboard";
+  const target = new URL(databaseUrl);
+  console.log(
+    `Resetting database ${target.pathname.slice(1)} on ${target.hostname}:${target.port || "5432"}`,
+  );
 
   const { client } = createDbFromEnv(databaseUrl);
   // public: application tables. drizzle: drizzle-kit's __drizzle_migrations
