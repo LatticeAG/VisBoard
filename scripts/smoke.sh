@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# VisBoard OSS smoke test — requires API on localhost:8080
+# VisBoard OSS smoke test — requires a running API
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-export VISBOARD_ENDPOINT="${VISBOARD_ENDPOINT:-http://localhost:8080/v1}"
-API_BASE_URL="${API_BASE_URL:-${VISBOARD_ENDPOINT%/v1}}"
+export VISBOARD_ENDPOINT="${VISBOARD_ENDPOINT:-${API_BASE_URL:-http://localhost:8080}/v1}"
 CLI() { node "${ROOT}/packages/cli/dist/index.js" --endpoint "$VISBOARD_ENDPOINT" "$@"; }
 
 echo "==> Bootstrap workspace"
