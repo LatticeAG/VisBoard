@@ -1,7 +1,7 @@
-import { createDbFromEnv } from "./client.js";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
+import { createDbFromEnv } from "./client.js";
 
 /**
  * Drop and recreate the public schema.
