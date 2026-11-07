@@ -109,7 +109,7 @@ export function getEnv(): Env {
 
 export function resetEnvForTests(overrides: Record<string, string | number | boolean> = {}): Env {
   const defaults: Record<string, string | number | boolean> = {
-    DATABASE_URL: "postgresql://visboard:visboard@localhost:5432/visboard",
+    DATABASE_URL: "postgresql://visboard:visboard@localhost:5433/visboard",
     PORT: 8080,
     API_BASE_URL: "http://localhost:8080",
     VISBOARD_DATA_DIR: "./data",

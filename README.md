@@ -69,22 +69,36 @@ Built for teams designing autonomous agent collaboration, not just chat. OSS-fir
 pnpm install
 pnpm build
 
-# 2. Start Postgres (Docker)
-docker compose up -d postgres
-
-# 3. Configure environment
+# 2. Load the example environment; repeat in each API terminal.
 cp .env.example .env
+set -a
+. ./.env
+set +a
 
-# 4. Migrate database
+# 3. Choose a database and export its URL in this shell.
+# Option A: start the Compose Postgres service:
+docker compose up -d postgres
+export DATABASE_URL=postgresql://visboard:visboard@localhost:5433/visboard
+
+# Set POSTGRES_PORT before docker compose up to choose another host port;
+# use the same port in DATABASE_URL. Container-to-container traffic uses 5432.
+
+# Option B: use an existing local Postgres instead (no Docker needed).
+# Create an empty database and a user with permission to create tables, then
+# substitute your own credentials, port, and database name:
+# export DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/DATABASE
+
+# .env is not automatically loaded by every command. Export DATABASE_URL
+# as above in every terminal running database commands or the API.
+
+# 4. Apply migrations to the chosen database
 pnpm --filter @visboard/db db:migrate
 
-# 5. (Optional) Seed demo workspace
-pnpm --filter @visboard/db db:seed
-# Preferred for admin token:
-pnpm --filter @visboard/cli exec visboard auth bootstrap --name "My Workspace"
-
-# 6. Start API (terminal 1)
+# 5. Start API (terminal 1)
 pnpm --filter @visboard/api dev
+
+# 6. Bootstrap an empty database and save the admin token (terminal 2)
+pnpm --filter @visboard/cli exec visboard auth bootstrap --name "My Workspace"
 
 # 7. Start web UI (terminal 2)
 pnpm --filter @visboard/web dev
@@ -96,15 +110,41 @@ Open http://localhost:3000 -- paste your PAT in Settings.
 
 ```bash
 docker compose up -d
-pnpm --filter @visboard/db db:migrate   # against localhost:5432
+export DATABASE_URL=postgresql://visboard:visboard@localhost:5433/visboard
+pnpm --filter @visboard/db db:migrate
 ```
 
-### Smoke test
+### Product and UI checks
+
+Run `scripts/smoke.sh` for the API/CLI product proof: it bootstraps a workspace,
+creates projects, notes, checklists and an agent, and exercises file upload and
+export/import. It needs built API and CLI packages, a running API with `/readyz`
+reporting `db: ok`, and a migrated database with no workspaces. Bootstrap only
+works once. Use a dedicated disposable database for repeat runs; `db:reset`
+drops its public and drizzle schemas, so never run it against data you need.
 
 ```bash
-chmod +x scripts/smoke.sh
-./scripts/smoke.sh
+# DATABASE_URL must point to your dedicated disposable database.
+pnpm --filter @visboard/db db:reset
+pnpm --filter @visboard/db db:migrate
+# Start the API in another terminal with the same DATABASE_URL, then:
+bash scripts/smoke.sh
 ```
+
+Playwright covers browser UI end-to-end behavior; it does not replace the
+API/CLI smoke test. Run both when validating a release or changes spanning the
+UI and API. The current UI test checks saving a token in Settings, not a full
+backend workflow. Install dependencies and the Playwright Chromium browser
+(`pnpm --filter @visboard/web exec playwright install chromium`), then run:
+
+```bash
+cd apps/web
+pnpm exec playwright test e2e/onboarding.spec.ts
+```
+
+Playwright builds the production web app and starts it automatically; its port
+must be free. The
+current onboarding test does not need a running API or database.
 
 ## Architecture
 
@@ -218,7 +258,7 @@ Security, contributor, and agent notes: [SECURITY.md](./SECURITY.md), [CONTRIBUT
 
 ## Development
 
-**Requirements:** Node 22+, pnpm 9+, Docker (Postgres).
+**Requirements:** Node 22+, pnpm 9+, PostgreSQL 16 (local or Docker).
 
 ```bash
 pnpm install
@@ -232,7 +272,7 @@ CI runs on every push to `main` and on pull requests.
 
 ## Known Issues
 
-- **PostgreSQL required** - VisBoard does not support SQLite. Postgres-specific features (row-level locking, LISTEN/NOTIFY on `visboard_events`) are used throughout. Use the Docker Compose setup for development.
+- **PostgreSQL required** - VisBoard does not support SQLite. Postgres-specific features (row-level locking, LISTEN/NOTIFY on `visboard_events`) are used throughout. Use a local Postgres instance or the Docker Compose setup for development.
 - **File storage is local** - File uploads write to the local filesystem. For multi-replica deployments, mount a shared volume or replace the storage backend.
 - **SSE across API processes** - Event rows are durable. `LISTEN/NOTIFY` on channel `visboard_events` fans the latest project event to other API processes sharing the same database. Redis is not used.
 - **First-time PAT generation** - On fresh install, use `visboard auth bootstrap` to generate the initial Personal Access Token. The web UI requires a PAT to authenticate.
