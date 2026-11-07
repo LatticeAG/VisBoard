@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 import { createDbFromEnv } from "./client.js";
+import { resolveResetDatabaseUrl } from "./reset-url.js";
 
 /**
  * Drop and recreate the public schema.
@@ -17,10 +18,7 @@ async function reset() {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  const databaseUrl =
-    process.env.DATABASE_URL ||
-    envFileUrl ||
-    "postgresql://visboard:visboard@localhost:5433/visboard";
+  const databaseUrl = resolveResetDatabaseUrl(process.env.DATABASE_URL, envFileUrl);
   const target = new URL(databaseUrl);
   console.log(
     `Resetting database ${target.pathname.slice(1)} on ${target.hostname}:${target.port || "5432"}`,
