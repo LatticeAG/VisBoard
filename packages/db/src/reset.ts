@@ -1,4 +1,8 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { parseEnv } from "node:util";
 import { createDbFromEnv } from "./client.js";
+import { resolveResetDatabaseUrl } from "./reset-url.js";
 
 /**
  * Drop and recreate the public schema.
@@ -6,11 +10,19 @@ import { createDbFromEnv } from "./client.js";
  * one-time bootstrap (allowed only with zero workspaces) sees an empty DB.
  */
 async function reset() {
-  const databaseUrl = process.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.error("DATABASE_URL is required");
-    process.exit(1);
+  let envFileUrl: string | undefined;
+  try {
+    envFileUrl = parseEnv(
+      readFileSync(fileURLToPath(new URL("../../../.env", import.meta.url)), "utf8"),
+    ).DATABASE_URL;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
+  const databaseUrl = resolveResetDatabaseUrl(process.env.DATABASE_URL, envFileUrl);
+  const target = new URL(databaseUrl);
+  console.log(
+    `Resetting database ${target.pathname.slice(1)} on ${target.hostname}:${target.port || "5432"}`,
+  );
 
   const { client } = createDbFromEnv(databaseUrl);
   // public: application tables. drizzle: drizzle-kit's __drizzle_migrations
