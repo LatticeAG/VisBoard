@@ -23,6 +23,19 @@ describe("health routes", () => {
     expect(body.version).toBe("0.1.0");
   });
 
+  it("keeps the Gateway attach probe public in production without connecting to the database", async () => {
+    resetEnvForTests({
+      NODE_ENV: "production",
+      VISBOARD_TOKEN_PEPPER: "visboard-gateway-test-pepper-0123456789",
+      DATABASE_URL: "postgres://visboard:secret@127.0.0.1:5432/visboard",
+    });
+
+    const res = await createApp().request("/health");
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ status: "ok", version: "0.1.0" });
+  });
+
   it("GET /readyz is 200 when select 1 succeeds", async () => {
     const memory = createInMemoryDb(createEmptyStore());
     setDbForTests({

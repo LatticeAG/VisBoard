@@ -208,6 +208,10 @@ VISBOARD_TOKEN=vb_pat_... VISBOARD_API_URL=http://localhost:8080/v1 \
 
 Configure in your MCP client with env vars `VISBOARD_TOKEN`, `VISBOARD_API_URL` (alias `VISBOARD_BASE_URL`), and optional `VISBOARD_WORKSPACE`. The package is packed with `./scripts/pack-sdks.sh`; it is not published to npm in this cycle. Point Cursor at `node packages/mcp/dist/index.js` after `pnpm --filter @visboard/mcp build`.
 
+## LatticeAG Gateway
+
+For Gateway attach settings, scoped key setup, and verification steps, see the [Gateway integration guide](./docs/gateway-integration.md).
+
 ## Packages
 
 | Package | Description |
